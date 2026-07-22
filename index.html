@@ -97,6 +97,9 @@ header{padding:14px 20px;border-bottom:1px solid var(--border);background:linear
 .mtab[data-mode="replace"].active{background:var(--st-progress);border-color:var(--st-progress);}
 .mtab[data-mode="delete"].active{background:var(--st-bad);border-color:var(--st-bad);}
 .mode-hint{font-size:10.5px;color:var(--text-dim);margin-bottom:8px;line-height:1.4;}
+.inspector-row{display:flex;align-items:center;justify-content:space-between;background:var(--panel-2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:12.5px;color:var(--text);}
+.inspector-row button{background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 4px;}
+.inspector-row button:hover{color:var(--st-bad);}
 .mh-row{padding:9px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;}
 .mh-row:hover{background:var(--panel-2);}
 .mh-row.selected{background:rgba(11,99,206,0.08);border-left:3px solid var(--accent);}
@@ -127,6 +130,9 @@ tr.tbrow.selected{background:rgba(11,99,206,0.08);}
 .detail-empty{color:var(--text-dim);font-size:12.5px;text-align:center;margin-top:60px;line-height:1.7;}
 .detail-empty .ic{font-size:26px;display:block;margin-bottom:8px;}
 .d-title{font-family:var(--mono);font-size:17px;font-weight:700;margin-bottom:2px;}
+.d-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+.detail-close-btn{background:var(--panel-2);border:1px solid var(--border);border-radius:7px;width:28px;height:28px;flex-shrink:0;color:var(--text-dim);cursor:pointer;font-size:14px;line-height:1;}
+.detail-close-btn:hover{color:var(--accent);border-color:var(--accent);}
 .d-coords{font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-bottom:16px;}
 .field{margin-bottom:13px;}
 .field label{display:block;font-size:11px;color:var(--text-dim);margin-bottom:5px;letter-spacing:0.2px;}
@@ -243,6 +249,14 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
           <div class="t2">.xlsx / .xls / .csv 지원 · 이름 기준으로 갱신</div>
         </label>
       </div>
+      <div class="side-section">
+        <div style="font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:8px;">조사자 관리</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px;">
+          <input type="text" id="inspectorNameInput" placeholder="이름 입력" style="flex:1;background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:6px;font-size:12.5px;">
+          <button id="inspectorAddBtn" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:0 14px;font-size:12.5px;font-weight:700;cursor:pointer;">추가</button>
+        </div>
+        <div id="inspectorList" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
     </div>
 
     <div class="menu-content" id="menuSearch" style="display:none;">
@@ -318,7 +332,7 @@ const STORAGE_KEY = 'seoul-sewer-manhole-data';
 const STATUS_COLORS = {'미착수':'var(--st-none)','진행중':'var(--st-progress)','완료':'var(--st-done)'};
 const STATUS_HEX = {'미착수':'#FF5252','진행중':'#FFC400','완료':'#00C853'};
 
-let state = { order: [], manholes: {}, controlPoints: [] };
+let state = { order: [], manholes: {}, controlPoints: [], inspectors: [] };
 let selectedId = null;
 let mobileTab = 'map';
 function updateMainLayout(){
@@ -448,7 +462,7 @@ document.getElementById('statusSubTabs').addEventListener('click', (e)=>{
 });
 
 function blankRecord(id,x,y,z){
-  return {id,x,y,z,status:'미착수',lidar:false,invert:'미확인',ladder:'미확인',fall:'미확인',inspector:'',date:'',note:''};
+  return {id,x,y,z,status:'미착수',lidar:false,invert:'없음',ladder:'없음',fall:'없음',sensor:'없음',inspector:'',date:'',note:''};
 }
 
 async function loadState(){
@@ -457,6 +471,7 @@ async function loadState(){
     if(res && res.value){ state = JSON.parse(res.value); }
   }catch(e){ /* no data yet */ }
   if(!state.controlPoints) state.controlPoints = [];
+  if(!state.inspectors) state.inspectors = [];
 }
 let lastSaveAt = 0;
 async function saveState(){
@@ -547,6 +562,48 @@ function renderCPList(){
     });
   });
 }
+
+/* ---------- 조사자 관리 (관리자 메뉴) ---------- */
+function renderInspectorList(){
+  const list = document.getElementById('inspectorList');
+  if(!list) return;
+  if(!state.inspectors.length){
+    list.innerHTML = '<div style="color:var(--text-dim);font-size:11.5px;">등록된 조사자가 없습니다.</div>';
+    return;
+  }
+  list.innerHTML = state.inspectors.map((name,i)=>`
+    <div class="inspector-row">
+      <span>${name}</span>
+      <button data-i="${i}" title="삭제">✕</button>
+    </div>`).join('');
+  list.querySelectorAll('.inspector-row button').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const name = state.inspectors[+btn.dataset.i];
+      if(!confirm(`'${name}' 조사자를 목록에서 삭제할까요? (이미 입력된 조사기록은 유지됩니다)`)) return;
+      state.inspectors.splice(+btn.dataset.i, 1);
+      await saveState();
+      renderInspectorList();
+      renderDetail();
+      showToast('조사자 삭제됨');
+    });
+  });
+}
+async function addInspectorFromInput(){
+  const input = document.getElementById('inspectorNameInput');
+  const name = input.value.trim();
+  if(!name){ showToast('이름을 입력해주세요'); return; }
+  if(state.inspectors.includes(name)){ showToast('이미 등록된 이름입니다'); return; }
+  state.inspectors.push(name);
+  await saveState();
+  input.value = '';
+  renderInspectorList();
+  showToast(`'${name}' 추가됨`);
+}
+document.getElementById('inspectorAddBtn').addEventListener('click', addInspectorFromInput);
+document.getElementById('inspectorNameInput').addEventListener('keydown', (e)=>{
+  if(e.key==='Enter'){ e.preventDefault(); addInspectorFromInput(); }
+});
+
 
 /* ---------- Excel parsing ---------- */
 document.getElementById('fileInput').addEventListener('change', async (e)=>{
@@ -846,12 +903,12 @@ function renderTable(){
       <td style="color:${STATUS_HEX[m.status]};font-weight:700;">●</td>
       <td>${m.id}</td><td>${m.x}</td><td>${m.y}</td><td>${m.z}</td>
       <td>${m.status}</td><td>${m.lidar?'Y':'-'}</td>
-      <td>${m.invert}</td><td>${m.ladder}</td><td>${m.fall}</td>
+      <td>${m.invert}</td><td>${m.ladder}</td><td>${m.fall}</td><td>${m.sensor||'없음'}</td>
       <td>${m.inspector||'-'}</td><td>${m.date||'-'}</td>
     </tr>`;
   }).join('');
   host.innerHTML = `<div class="table-wrap"><table>
-    <thead><tr><th></th><th>맨홀번호</th><th>X</th><th>Y</th><th>Z</th><th>상태</th><th>라이다</th><th>인버트</th><th>사다리</th><th>추락방지</th><th>조사자</th><th>일자</th></tr></thead>
+    <thead><tr><th></th><th>맨홀번호</th><th>X</th><th>Y</th><th>Z</th><th>상태</th><th>라이다</th><th>인버트</th><th>사다리</th><th>추락방지</th><th>계측센서</th><th>조사자</th><th>일자</th></tr></thead>
     <tbody>${rowsHtml}</tbody>
   </table></div>`;
   host.querySelectorAll('.tbrow').forEach(r=>{
@@ -872,9 +929,23 @@ function renderDetail(){
     return;
   }
   const m = state.manholes[selectedId];
+  const presenceOptions = (val)=>['없음','있음'].map(v=>`<option value="${v}" ${val===v?'selected':''}>${v}</option>`).join('');
+  const inspectorOptions = ()=>{
+    let opts = `<option value="">선택 안함</option>`;
+    if(m.inspector && !state.inspectors.includes(m.inspector)){
+      opts += `<option value="${m.inspector}" selected>${m.inspector} (목록에 없음)</option>`;
+    }
+    opts += state.inspectors.map(name=>`<option value="${name}" ${m.inspector===name?'selected':''}>${name}</option>`).join('');
+    return opts;
+  };
   panel.innerHTML = `
-    <div class="d-title">${m.id}</div>
-    <div class="d-coords">X ${m.x}　Y ${m.y}</div>
+    <div class="d-header">
+      <div>
+        <div class="d-title">${m.id}</div>
+        <div class="d-coords">X ${m.x}　Y ${m.y}</div>
+      </div>
+      <button class="detail-close-btn" id="detailCloseBtn" title="닫기">✕</button>
+    </div>
 
     <div class="field">
       <label>진행상태</label>
@@ -892,29 +963,27 @@ function renderDetail(){
     <hr class="sep">
 
     <div class="field">
-      <label>인버트 상태 (육안조사)</label>
-      <select id="f-invert">
-        ${['미확인','양호','보통','불량'].map(v=>`<option value="${v}" ${m.invert===v?'selected':''}>${v}</option>`).join('')}
-      </select>
+      <label>인버트 유무 (육안조사)</label>
+      <select id="f-invert">${presenceOptions(m.invert)}</select>
     </div>
     <div class="field">
-      <label>사다리 상태 (육안조사)</label>
-      <select id="f-ladder">
-        ${['미확인','양호','보통','불량','없음'].map(v=>`<option value="${v}" ${m.ladder===v?'selected':''}>${v}</option>`).join('')}
-      </select>
+      <label>사다리 유무 (육안조사)</label>
+      <select id="f-ladder">${presenceOptions(m.ladder)}</select>
     </div>
     <div class="field">
-      <label>추락방지시설 상태 (육안조사)</label>
-      <select id="f-fall">
-        ${['미확인','양호','보통','불량','없음'].map(v=>`<option value="${v}" ${m.fall===v?'selected':''}>${v}</option>`).join('')}
-      </select>
+      <label>추락방지시설 유무 (육안조사)</label>
+      <select id="f-fall">${presenceOptions(m.fall)}</select>
+    </div>
+    <div class="field">
+      <label>계측센서 유무 (육안조사)</label>
+      <select id="f-sensor">${presenceOptions(m.sensor)}</select>
     </div>
 
     <hr class="sep">
 
     <div class="field">
       <label>조사자</label>
-      <input type="text" id="f-inspector" value="${m.inspector||''}" placeholder="이름 입력">
+      <select id="f-inspector">${inspectorOptions()}</select>
     </div>
     <div class="field">
       <label>조사일자</label>
@@ -925,6 +994,12 @@ function renderDetail(){
       <textarea id="f-note" placeholder="특이사항 입력">${m.note||''}</textarea>
     </div>
   `;
+
+  document.getElementById('detailCloseBtn').addEventListener('click', ()=>{
+    selectedId = null;
+    renderAll();
+    if(window.innerWidth <= 860) setMobileTab('map');
+  });
 
   const bind = (elId, prop, evt='change') => {
     const el = document.getElementById(elId);
@@ -941,7 +1016,8 @@ function renderDetail(){
   bind('f-invert','invert');
   bind('f-ladder','ladder');
   bind('f-fall','fall');
-  bind('f-inspector','inspector','input');
+  bind('f-sensor','sensor');
+  bind('f-inspector','inspector');
   bind('f-date','date');
   bind('f-note','note','input');
 }
@@ -952,6 +1028,7 @@ function renderAll(){
   renderCenter();
   renderDetail();
   renderCPList();
+  renderInspectorList();
 }
 
 /* ---------- shared-data polling (near real-time sync) ---------- */
