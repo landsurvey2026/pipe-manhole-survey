@@ -49,7 +49,21 @@ header{padding:14px 20px;border-bottom:1px solid var(--border);background:linear
 .progress-label{font-family:var(--mono);font-size:11px;color:rgba(255,255,255,0.85);}
 
 /* layout */
-.main{display:grid;grid-template-columns:280px 1fr 300px;flex:1;min-height:0;transition:grid-template-columns .18s ease;}
+.main{display:grid;grid-template-columns:1fr 0px;flex:1;min-height:0;transition:grid-template-columns .18s ease;}
+
+/* 관리자/검색/현황 팝업 모달 */
+.menu-modal-backdrop{display:none;position:fixed;inset:0;background:rgba(15,20,26,0.35);z-index:900;}
+.menu-modal-backdrop.open{display:block;}
+.menu-modal{display:none;flex-direction:column;position:fixed;top:78px;left:20px;width:320px;max-height:calc(100vh - 110px);background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 16px 40px rgba(15,20,26,0.28);z-index:901;overflow:hidden;}
+.menu-modal.open{display:flex;}
+.menu-modal-header{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.menu-modal-title{font-weight:700;font-size:13.5px;color:var(--text);}
+.menu-modal-close{background:var(--panel-2);border:1px solid var(--border);border-radius:7px;width:26px;height:26px;color:var(--text-dim);cursor:pointer;font-size:13px;line-height:1;}
+.menu-modal-close:hover{color:var(--accent);border-color:var(--accent);}
+.menu-modal-body{flex:1;min-height:0;display:flex;flex-direction:column;}
+@media (max-width:860px){
+  .menu-modal{left:10px;right:10px;width:auto;top:auto;bottom:64px;max-height:70vh;border-radius:14px;}
+}
 .panel{border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0;background:var(--panel);overflow:hidden;}
 .main > .panel:last-child{border-right:none;border-left:1px solid var(--border);}
 
@@ -153,7 +167,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
   .top-toolbar{gap:5px;order:3;width:100%;}
   .top-toolbar button{padding:6px 10px;font-size:11.5px;}
 
-  .side-panel .list-wrap{flex:1;}
+  .menu-modal .list-wrap{flex:1;}
   .view-toggle{top:8px;left:8px;}
   #basemapToggle{top:44px;}
   .legend{bottom:8px;left:8px;flex-wrap:wrap;max-width:60%;font-size:9.5px;gap:6px;}
@@ -193,8 +207,13 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
   </div>
 </header>
 
-<div class="main">
-  <div class="panel side-panel">
+<div class="menu-modal-backdrop" id="menuBackdrop"></div>
+<div class="menu-modal" id="menuModal">
+  <div class="menu-modal-header">
+    <div class="menu-modal-title" id="menuModalTitle">현황</div>
+    <button class="menu-modal-close" id="menuModalClose">✕</button>
+  </div>
+  <div class="menu-modal-body">
     <div class="menu-content" id="menuAdmin" style="display:none;">
       <div class="side-section">
         <div class="mode-tabs" data-mode-group="manhole">
@@ -259,7 +278,9 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
       </div>
     </div>
   </div>
+</div>
 
+<div class="main">
   <div class="panel center-panel">
     <div class="view-toggle">
       <button class="active" data-v="map">지도</button>
@@ -304,7 +325,7 @@ function updateMainLayout(){
   const mainEl = document.querySelector('.main');
   if(!mainEl) return;
   if(window.innerWidth <= 860){ mainEl.style.gridTemplateColumns = ''; return; }
-  mainEl.style.gridTemplateColumns = selectedId ? '280px 1fr 300px' : '280px 1fr 0px';
+  mainEl.style.gridTemplateColumns = selectedId ? '1fr 300px' : '1fr 0px';
   setTimeout(()=>{ if(leafletMap) leafletMap.invalidateSize(); }, 220);
 }
 function selectManhole(id){
@@ -313,11 +334,10 @@ function selectManhole(id){
   if(window.innerWidth <= 860) setMobileTab('detail');
 }
 function setMobileTab(tab){
+  if(tab==='list'){ showMenu(activeMenu || 'status'); return; }
   mobileTab = tab;
-  const sidePanel = document.querySelector('.side-panel');
   const centerPanel = document.querySelector('.center-panel');
   const detailPanel = document.querySelector('.detail-panel-wrap');
-  if(sidePanel) sidePanel.classList.toggle('mobile-active', tab==='list');
   if(centerPanel) centerPanel.classList.toggle('mobile-active', tab==='map');
   if(detailPanel) detailPanel.classList.toggle('mobile-active', tab==='detail');
   document.querySelectorAll('.mobile-tabbar button').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
@@ -367,7 +387,25 @@ const listWrapEl = document.createElement('div');
 listWrapEl.id = 'listWrap';
 document.getElementById('statusListSlot').appendChild(listWrapEl);
 
+let activeMenu = null;
+const MENU_TITLES = {admin:'⚙ 관리자', search:'🔍 검색', status:'📊 현황'};
+
+function openMenuModal(){
+  document.getElementById('menuModal').classList.add('open');
+  document.getElementById('menuBackdrop').classList.add('open');
+}
+function closeMenuModal(){
+  document.getElementById('menuModal').classList.remove('open');
+  document.getElementById('menuBackdrop').classList.remove('open');
+  document.querySelectorAll('.top-toolbar button').forEach(b=>b.classList.remove('active'));
+  if(searchTerm){ searchTerm=''; document.getElementById('searchInput').value=''; }
+  activeMenu = null;
+}
 function showMenu(name){
+  if(activeMenu===name){ closeMenuModal(); return; }
+  activeMenu = name;
+  openMenuModal();
+  document.getElementById('menuModalTitle').textContent = MENU_TITLES[name] || '';
   document.querySelectorAll('.top-toolbar button').forEach(b=>b.classList.toggle('active', b.dataset.menu===name));
   document.getElementById('menuAdmin').style.display = name==='admin' ? 'flex' : 'none';
   document.getElementById('menuSearch').style.display = name==='search' ? 'flex' : 'none';
@@ -375,7 +413,7 @@ function showMenu(name){
 
   if(name==='search'){
     document.getElementById('searchListSlot').appendChild(listWrapEl);
-    setTimeout(()=>document.getElementById('searchInput').focus(), 50);
+    setTimeout(()=>document.getElementById('searchInput').focus(), 80);
   }else{
     if(searchTerm){ searchTerm=''; document.getElementById('searchInput').value=''; }
     if(name==='status' && statusSub==='manhole'){
@@ -387,6 +425,9 @@ function showMenu(name){
 document.querySelectorAll('.top-toolbar button').forEach(b=>{
   b.addEventListener('click', ()=>showMenu(b.dataset.menu));
 });
+document.getElementById('menuModalClose').addEventListener('click', closeMenuModal);
+document.getElementById('menuBackdrop').addEventListener('click', closeMenuModal);
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeMenuModal(); });
 
 function showStatusSub(name){
   statusSub = name;
@@ -417,10 +458,12 @@ async function loadState(){
   }catch(e){ /* no data yet */ }
   if(!state.controlPoints) state.controlPoints = [];
 }
+let lastSaveAt = 0;
 async function saveState(){
   try{
     const r = await window.storage.set(STORAGE_KEY, JSON.stringify(state), true);
     if(!r) showToast('저장 실패 (네트워크 확인)');
+    else lastSaveAt = Date.now();
   }catch(e){ console.error(e); showToast('저장 실패'); }
 }
 
@@ -915,6 +958,7 @@ function renderAll(){
 setInterval(async ()=>{
   const active = document.activeElement;
   if(active && ['INPUT','TEXTAREA','SELECT'].includes(active.tagName)) return;
+  if(Date.now() - lastSaveAt < 15000) return; // 방금 내가 저장했으면 잠시 건너뛰어 덮어쓰기 방지
   try{
     const res = await window.storage.get(STORAGE_KEY, true);
     if(res && res.value){
@@ -933,7 +977,6 @@ window.addEventListener('resize', ()=>{ renderCenter(); updateMainLayout(); });
   await loadState();
   renderAll();
   setMobileTab('map');
-  showMenu('status');
   showStatusSub('manhole');
 })();
 </script>
