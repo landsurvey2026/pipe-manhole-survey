@@ -78,6 +78,12 @@ header{padding:14px 20px;border-bottom:1px solid var(--border);background:linear
 .stab{font-size:11.5px;padding:6px 12px;border-radius:16px;background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);cursor:pointer;font-weight:600;}
 .stab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
 #statusManholeView{display:flex;flex-direction:column;flex:1;min-height:0;}
+.mode-tabs{display:flex;gap:5px;margin-bottom:6px;}
+.mtab{flex:1;font-size:11px;padding:6px 4px;border-radius:6px;background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);cursor:pointer;font-weight:600;text-align:center;}
+.mtab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.mtab[data-mode="replace"].active{background:var(--st-progress);border-color:var(--st-progress);}
+.mtab[data-mode="delete"].active{background:var(--st-bad);border-color:var(--st-bad);}
+.mode-hint{font-size:10.5px;color:var(--text-dim);margin-bottom:8px;line-height:1.4;}
 .mh-row{padding:9px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;}
 .mh-row:hover{background:var(--panel-2);}
 .mh-row.selected{background:rgba(11,99,206,0.08);border-left:3px solid var(--accent);}
@@ -194,14 +200,26 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
     <div class="menu-content" id="menuAdmin" style="display:none;">
       <div class="side-section">
+        <div class="mode-tabs" data-mode-group="manhole">
+          <button class="mtab active" data-mode="add">추가</button>
+          <button class="mtab" data-mode="replace">전체</button>
+          <button class="mtab" data-mode="delete">삭제</button>
+        </div>
+        <div class="mode-hint" id="manholeModeHint">엑셀의 맨홀만 새로 추가/갱신하고, 기존 맨홀은 그대로 둡니다.</div>
         <label class="upload-box" id="uploadBox">
           <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
           <div class="ic">📤</div>
           <div class="t1">맨홀 엑셀 업로드 (맨홀번호, X, Y, Z)</div>
-          <div class="t2">.xlsx / .xls / .csv 지원 · 재업로드시 조사현황 유지</div>
+          <div class="t2">.xlsx / .xls / .csv 지원</div>
         </label>
       </div>
       <div class="side-section">
+        <div class="mode-tabs" data-mode-group="cp">
+          <button class="mtab active" data-mode="add">추가</button>
+          <button class="mtab" data-mode="replace">전체</button>
+          <button class="mtab" data-mode="delete">삭제</button>
+        </div>
+        <div class="mode-hint" id="cpModeHint">엑셀의 기준점만 새로 추가/갱신하고, 기존 기준점은 그대로 둡니다.</div>
         <label class="upload-box" id="cpUploadBox">
           <input type="file" id="cpFileInput" accept=".xlsx,.xls,.csv">
           <div class="ic">📐</div>
@@ -312,6 +330,36 @@ let filterStatus = 'all';
 let searchTerm = '';
 let viewMode = 'map';
 let statusSub = 'manhole';
+let manholeUploadMode = 'add';
+let cpUploadMode = 'add';
+
+const MODE_HINTS = {
+  add: (label)=>`엑셀의 ${label}만 새로 추가/갱신하고, 기존 ${label}은 그대로 둡니다.`,
+  replace: (label)=>`기존 ${label}을 모두 지우고 엑셀 내용으로 전체 교체합니다. (같은 이름/번호는 기존 조사현황 유지)`,
+  delete: (label)=>`엑셀에 있는 ${label}만 현재 목록에서 삭제합니다.`
+};
+function wireModeTabs(groupName, label){
+  const group = document.querySelector(`[data-mode-group="${groupName}"]`);
+  const hint = document.getElementById(groupName==='manhole' ? 'manholeModeHint' : 'cpModeHint');
+  group.querySelectorAll('.mtab').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      group.querySelectorAll('.mtab').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      if(groupName==='manhole') manholeUploadMode = b.dataset.mode; else cpUploadMode = b.dataset.mode;
+      hint.textContent = MODE_HINTS[b.dataset.mode](label);
+    });
+  });
+}
+wireModeTabs('manhole','맨홀');
+wireModeTabs('cp','기준점');
+
+function findColIdx(header, candidates, fallback){
+  for(const c of candidates){
+    const idx = header.findIndex(h=>h.includes(c));
+    if(idx!==-1) return idx;
+  }
+  return fallback;
+}
 
 /* ---------- 좌측 사이드바: 관리자 / 검색 / 현황 메뉴 ---------- */
 // listWrap은 검색/현황(맨홀조사) 중 활성화된 슬롯으로 옮겨 붙는 공용 리스트 컨테이너
@@ -391,32 +439,46 @@ document.getElementById('cpFileInput').addEventListener('change', async (e)=>{
   const wb = XLSX.read(buf, {type:'array'});
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true});
-  if(!rows.length){ showToast('빈 파일입니다'); return; }
+  if(!rows.length){ showToast('빈 파일입니다'); e.target.value=''; return; }
   const header = rows[0].map(h=>String(h??'').trim().toLowerCase());
-  const findIdx = (candidates, fallback) => {
-    for(const c of candidates){
-      const idx = header.findIndex(h=>h.includes(c));
-      if(idx!==-1) return idx;
-    }
-    return fallback;
-  };
-  const nameIdx = findIdx(['기준점','명칭','이름','name'], 0);
-  const xIdx = findIdx(['x'], 1);
-  const yIdx = findIdx(['y'], 2);
-  const zIdx = findIdx(['z','표고'], 3);
-  let added=0, updated=0;
+  const nameIdx = findColIdx(header, ['기준점','명칭','이름','name'], 0);
+  const xIdx = findColIdx(header, ['x'], 1);
+  const yIdx = findColIdx(header, ['y'], 2);
+  const zIdx = findColIdx(header, ['z','표고'], 3);
+  const parsed = [];
   for(let i=1;i<rows.length;i++){
     const row = rows[i];
     if(!row || !row.length) continue;
     const name = String(row[nameIdx] ?? '').trim();
     if(!name) continue;
-    const x = parseFloat(row[xIdx]), y = parseFloat(row[yIdx]), z = parseFloat(row[zIdx]);
-    const existing = state.controlPoints.find(cp=>cp.name===name);
-    if(existing){ existing.x=x; existing.y=y; existing.z=z; updated++; }
-    else{ state.controlPoints.push({name,x,y,z}); added++; }
+    parsed.push({name, x:parseFloat(row[xIdx]), y:parseFloat(row[yIdx]), z:parseFloat(row[zIdx])});
   }
-  await saveState();
-  showToast(`기준점 업로드 완료 · 신규 ${added}건 / 갱신 ${updated}건`);
+  if(!parsed.length){ showToast('인식된 기준점 데이터가 없습니다'); e.target.value=''; return; }
+
+  if(cpUploadMode==='delete'){
+    if(!confirm(`엑셀에 있는 기준점 ${parsed.length}건을 현재 목록에서 삭제할까요?`)){ e.target.value=''; return; }
+    let removed=0;
+    parsed.forEach(r=>{
+      const idx = state.controlPoints.findIndex(cp=>cp.name===r.name);
+      if(idx>=0){ state.controlPoints.splice(idx,1); removed++; }
+    });
+    await saveState();
+    showToast(`기준점 ${removed}건 삭제됨`);
+  }else if(cpUploadMode==='replace'){
+    if(!confirm(`기존 기준점을 모두 지우고 엑셀 내용(${parsed.length}건)으로 전체 교체할까요?`)){ e.target.value=''; return; }
+    state.controlPoints = parsed;
+    await saveState();
+    showToast(`기준점 전체교체 완료 · ${parsed.length}건`);
+  }else{
+    let added=0, updated=0;
+    parsed.forEach(r=>{
+      const existing = state.controlPoints.find(cp=>cp.name===r.name);
+      if(existing){ existing.x=r.x; existing.y=r.y; existing.z=r.z; updated++; }
+      else{ state.controlPoints.push(r); added++; }
+    });
+    await saveState();
+    showToast(`기준점 업로드 완료 · 신규 ${added}건 / 갱신 ${updated}건`);
+  }
   renderAll();
   e.target.value = '';
 });
@@ -451,40 +513,71 @@ document.getElementById('fileInput').addEventListener('change', async (e)=>{
   const wb = XLSX.read(buf, {type:'array'});
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true});
-  if(!rows.length){ showToast('빈 파일입니다'); return; }
+  if(!rows.length){ showToast('빈 파일입니다'); e.target.value=''; return; }
   const header = rows[0].map(h=>String(h??'').trim().toLowerCase());
-  const findIdx = (candidates, fallback) => {
-    for(const c of candidates){
-      const idx = header.findIndex(h=>h.includes(c));
-      if(idx!==-1) return idx;
-    }
-    return fallback;
-  };
-  const idIdx = findIdx(['맨홀','manhole','no','번호','id'], 0);
-  const xIdx  = findIdx(['x좌표','x'], 1);
-  const yIdx  = findIdx(['y좌표','y'], 2);
-  const zIdx  = findIdx(['표고','z좌표','z'], 3);
+  const idIdx = findColIdx(header, ['맨홀','manhole','no','번호','id'], 0);
+  const xIdx  = findColIdx(header, ['x좌표','x'], 1);
+  const yIdx  = findColIdx(header, ['y좌표','y'], 2);
+  const zIdx  = findColIdx(header, ['표고','z좌표','z'], 3);
 
-  let added=0, updated=0;
+  const parsed = [];
   for(let i=1;i<rows.length;i++){
     const row = rows[i];
     if(!row || !row.length) continue;
     const id = String(row[idIdx] ?? '').trim();
     if(!id) continue;
-    const x = parseFloat(row[xIdx]);
-    const y = parseFloat(row[yIdx]);
-    const z = parseFloat(row[zIdx]);
-    if(state.manholes[id]){
-      state.manholes[id].x = x; state.manholes[id].y = y; state.manholes[id].z = z;
-      updated++;
-    }else{
-      state.manholes[id] = blankRecord(id,x,y,z);
-      state.order.push(id);
-      added++;
-    }
+    parsed.push({id, x:parseFloat(row[xIdx]), y:parseFloat(row[yIdx]), z:parseFloat(row[zIdx])});
   }
-  await saveState();
-  showToast(`업로드 완료 · 신규 ${added}건 / 갱신 ${updated}건`);
+  if(!parsed.length){ showToast('인식된 맨홀 데이터가 없습니다'); e.target.value=''; return; }
+
+  if(manholeUploadMode==='delete'){
+    if(!confirm(`엑셀에 있는 맨홀 ${parsed.length}건을 현재 목록에서 삭제할까요? (조사현황도 함께 삭제됩니다)`)){ e.target.value=''; return; }
+    let removed=0;
+    parsed.forEach(r=>{
+      if(state.manholes[r.id]){
+        delete state.manholes[r.id];
+        state.order = state.order.filter(id=>id!==r.id);
+        removed++;
+      }
+    });
+    if(selectedId && !state.manholes[selectedId]) selectedId = null;
+    await saveState();
+    showToast(`맨홀 ${removed}건 삭제됨`);
+  }else if(manholeUploadMode==='replace'){
+    if(!confirm(`기존 맨홀 데이터를 모두 지우고 엑셀 내용(${parsed.length}건)으로 전체 교체할까요?\n(같은 맨홀번호는 기존 조사현황을 유지합니다)`)){ e.target.value=''; return; }
+    const newManholes = {};
+    const newOrder = [];
+    let kept=0, added=0;
+    parsed.forEach(r=>{
+      if(state.manholes[r.id]){
+        newManholes[r.id] = {...state.manholes[r.id], x:r.x, y:r.y, z:r.z};
+        kept++;
+      }else{
+        newManholes[r.id] = blankRecord(r.id, r.x, r.y, r.z);
+        added++;
+      }
+      newOrder.push(r.id);
+    });
+    state.manholes = newManholes;
+    state.order = newOrder;
+    if(selectedId && !state.manholes[selectedId]) selectedId = null;
+    await saveState();
+    showToast(`맨홀 전체교체 완료 · 유지 ${kept}건 / 신규 ${added}건`);
+  }else{
+    let added=0, updated=0;
+    parsed.forEach(r=>{
+      if(state.manholes[r.id]){
+        state.manholes[r.id].x = r.x; state.manholes[r.id].y = r.y; state.manholes[r.id].z = r.z;
+        updated++;
+      }else{
+        state.manholes[r.id] = blankRecord(r.id, r.x, r.y, r.z);
+        state.order.push(r.id);
+        added++;
+      }
+    });
+    await saveState();
+    showToast(`업로드 완료 · 신규 ${added}건 / 갱신 ${updated}건`);
+  }
   renderAll();
   e.target.value = '';
 });
