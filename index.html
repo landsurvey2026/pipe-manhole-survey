@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>원형관로 맨홀조사 현황판</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#0B1014;
+  --panel:#121A20;
+  --panel-2:#1B252C;
+  --border:#25323B;
+  --text:#E4EAEE;
+  --text-dim:#7E8D99;
+  --accent:#2DD4C8;
+  --accent-2:#4C8DFF;
+  --st-none:#4B5560;
+  --st-progress:#E8A33D;
+  --st-done:#3DDC84;
+  --st-bad:#E8574C;
+  --grid:rgba(45,212,200,0.09);
+  --mono: 'SFMono-Regular','Roboto Mono','Consolas','Liberation Mono',monospace;
+  --sans: -apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);height:100%;}
+body{display:flex;flex-direction:column;min-height:100vh;}
+
+/* header */
+header{padding:14px 20px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#0E151A,#0B1014);display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+.brand{display:flex;flex-direction:column;gap:2px;}
+.brand .title{font-weight:700;font-size:16px;letter-spacing:0.3px;}
+.brand .sub{font-size:11px;color:var(--text-dim);font-family:var(--mono);letter-spacing:0.5px;}
+.dash{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap;}
+.dash-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px 14px;min-width:78px;text-align:center;}
+.dash-card .n{font-family:var(--mono);font-size:20px;font-weight:700;line-height:1.1;}
+.dash-card .l{font-size:10px;color:var(--text-dim);margin-top:2px;}
+.dash-card.done .n{color:var(--st-done);}
+.dash-card.prog .n{color:var(--st-progress);}
+.dash-card.none .n{color:var(--st-none);}
+.progress-wrap{width:180px;display:flex;flex-direction:column;gap:4px;justify-content:center;}
+.progress-bar{height:8px;border-radius:4px;background:#1C2731;overflow:hidden;border:1px solid var(--border);}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--st-done));transition:width .4s ease;}
+.progress-label{font-family:var(--mono);font-size:11px;color:var(--text-dim);}
+
+/* layout */
+.main{display:grid;grid-template-columns:280px 1fr 300px;flex:1;min-height:0;}
+@media (max-width:980px){ .main{grid-template-columns:1fr;} }
+.panel{border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0;}
+.main > .panel:last-child{border-right:none;border-left:1px solid var(--border);}
+
+/* sidebar left */
+.side-section{padding:14px;border-bottom:1px solid var(--border);}
+.upload-box{border:1.5px dashed var(--border);border-radius:10px;padding:16px;text-align:center;cursor:pointer;transition:.15s;}
+.upload-box:hover{border-color:var(--accent);background:rgba(45,212,200,0.05);}
+.upload-box input{display:none;}
+.upload-box .ic{font-size:22px;margin-bottom:4px;}
+.upload-box .t1{font-size:12.5px;font-weight:600;}
+.upload-box .t2{font-size:10.5px;color:var(--text-dim);margin-top:3px;font-family:var(--mono);}
+.search-input{width:100%;background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:7px;font-size:13px;font-family:var(--mono);}
+.search-input:focus{outline:none;border-color:var(--accent);}
+.filter-tabs{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap;}
+.ftab{font-size:11px;padding:5px 9px;border-radius:6px;background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);cursor:pointer;}
+.ftab.active{background:var(--accent);color:#03211E;border-color:var(--accent);font-weight:700;}
+.list-wrap{flex:1;overflow-y:auto;}
+.mh-row{padding:9px 14px;border-bottom:1px solid #182027;display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;}
+.mh-row:hover{background:var(--panel-2);}
+.mh-row.selected{background:rgba(45,212,200,0.10);border-left:3px solid var(--accent);}
+.dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.mh-row .id{font-family:var(--mono);font-weight:600;}
+.mh-row .st{margin-left:auto;font-size:10.5px;color:var(--text-dim);}
+.empty-note{padding:20px 14px;color:var(--text-dim);font-size:12px;text-align:center;line-height:1.6;}
+
+/* center map */
+.center-panel{position:relative;background:#0A0F13;}
+.view-toggle{position:absolute;top:12px;left:12px;z-index:5;display:flex;gap:6px;background:rgba(18,26,32,0.85);padding:4px;border-radius:8px;border:1px solid var(--border);backdrop-filter:blur(4px);}
+.view-toggle button{background:transparent;border:none;color:var(--text-dim);font-size:12px;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:var(--sans);}
+.view-toggle button.active{background:var(--accent);color:#03211E;font-weight:700;}
+.export-btn{position:absolute;top:12px;right:12px;z-index:5;background:rgba(18,26,32,0.85);border:1px solid var(--border);color:var(--text-dim);font-size:11.5px;padding:7px 12px;border-radius:8px;cursor:pointer;font-family:var(--mono);}
+.export-btn:hover{border-color:var(--accent);color:var(--accent);}
+.map-svg{width:100%;height:100%;display:block;}
+.coord-readout{position:absolute;bottom:10px;left:12px;font-family:var(--mono);font-size:11px;color:var(--accent);background:rgba(18,26,32,0.85);padding:6px 10px;border-radius:6px;border:1px solid var(--border);}
+.legend{position:absolute;bottom:10px;right:12px;display:flex;gap:12px;background:rgba(18,26,32,0.85);padding:7px 12px;border-radius:8px;border:1px solid var(--border);font-size:10.5px;color:var(--text-dim);}
+.legend span{display:inline-flex;align-items:center;gap:5px;}
+.legend .dot{width:8px;height:8px;}
+.table-wrap{width:100%;height:100%;overflow:auto;padding:10px 14px 14px;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{position:sticky;top:0;background:#0F171D;color:var(--text-dim);text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.4px;border-bottom:1px solid var(--border);cursor:pointer;}
+td{padding:7px 10px;border-bottom:1px solid #182027;font-family:var(--mono);}
+tr.tbrow:hover{background:var(--panel-2);cursor:pointer;}
+tr.tbrow.selected{background:rgba(45,212,200,0.10);}
+
+/* right detail */
+.detail-panel{padding:16px;overflow-y:auto;}
+.detail-empty{color:var(--text-dim);font-size:12.5px;text-align:center;margin-top:60px;line-height:1.7;}
+.detail-empty .ic{font-size:26px;display:block;margin-bottom:8px;}
+.d-title{font-family:var(--mono);font-size:17px;font-weight:700;margin-bottom:2px;}
+.d-coords{font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-bottom:16px;}
+.field{margin-bottom:13px;}
+.field label{display:block;font-size:11px;color:var(--text-dim);margin-bottom:5px;letter-spacing:0.2px;}
+.field select, .field input[type=text], .field input[type=date], .field textarea{
+  width:100%;background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+  padding:8px 9px;border-radius:6px;font-size:12.5px;font-family:var(--sans);
+}
+.field textarea{resize:vertical;min-height:56px;font-family:var(--sans);}
+.check-row{display:flex;align-items:center;gap:8px;background:var(--panel-2);border:1px solid var(--border);border-radius:6px;padding:9px 10px;}
+.check-row input{width:16px;height:16px;accent-color:var(--accent);}
+.status-select{font-weight:700;}
+hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#152026;border:1px solid var(--accent);color:var(--accent);padding:9px 18px;border-radius:20px;font-size:12.5px;font-family:var(--mono);opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;z-index:100;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+
+/* map svg elements */
+.scan-line{animation:sweep 5s linear infinite;}
+@keyframes sweep{0%{transform:translateY(0);opacity:0;}5%{opacity:.5;}50%{opacity:.15;}95%{opacity:.5;}100%{transform:translateY(100%);opacity:0;}}
+.mh-dot{cursor:pointer;transition:r .12s ease;}
+.mh-dot:hover{filter:brightness(1.3);}
+.pulse{animation:pulse 1.8s ease-in-out infinite;}
+@keyframes pulse{0%{opacity:.55;}50%{opacity:.05;}100%{opacity:.55;}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="title">원형관로 맨홀조사 현황판</div>
+    <div class="sub">CIRCULAR SEWER PIPE · MANHOLE SURVEY CONTROL · LiDAR SCAN / INVERT·LADDER·FALL-PREVENTION INSPECTION</div>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-label"><span id="pct">0</span>% 완료 (<span id="doneCount2">0</span>/<span id="totalCount2">0</span>)</div>
+    <div class="progress-bar"><div class="progress-fill" id="progFill" style="width:0%"></div></div>
+  </div>
+  <div class="dash">
+    <div class="dash-card"><div class="n" id="totalCount">0</div><div class="l">전체</div></div>
+    <div class="dash-card none"><div class="n" id="noneCount">0</div><div class="l">미착수</div></div>
+    <div class="dash-card prog"><div class="n" id="progCount">0</div><div class="l">진행중</div></div>
+    <div class="dash-card done"><div class="n" id="doneCount">0</div><div class="l">완료</div></div>
+  </div>
+</header>
+
+<div class="main">
+  <div class="panel side-panel">
+    <div class="side-section">
+      <label class="upload-box" id="uploadBox">
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+        <div class="ic">📤</div>
+        <div class="t1">엑셀 업로드 (맨홀번호, X, Y, Z)</div>
+        <div class="t2">.xlsx / .xls / .csv 지원 · 재업로드시 조사현황 유지</div>
+      </label>
+    </div>
+    <div class="side-section" style="padding-bottom:10px;">
+      <input class="search-input" id="searchInput" placeholder="맨홀번호 검색...">
+      <div class="filter-tabs" id="filterTabs">
+        <div class="ftab active" data-f="all">전체</div>
+        <div class="ftab" data-f="미착수">미착수</div>
+        <div class="ftab" data-f="진행중">진행중</div>
+        <div class="ftab" data-f="완료">완료</div>
+      </div>
+    </div>
+    <div class="list-wrap" id="listWrap"></div>
+  </div>
+
+  <div class="panel center-panel">
+    <div class="view-toggle">
+      <button class="active" data-v="map">지도</button>
+      <button data-v="table">표</button>
+    </div>
+    <button class="export-btn" id="exportBtn">⤓ CSV 내보내기</button>
+    <div id="mapHost" style="width:100%;height:100%;"></div>
+    <div id="tableHost" style="width:100%;height:100%;display:none;"></div>
+    <div class="coord-readout" id="coordReadout">X: -　Y: -　Z: -</div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--st-none)"></i>미착수</span>
+      <span><i class="dot" style="background:var(--st-progress)"></i>진행중</span>
+      <span><i class="dot" style="background:var(--st-done)"></i>완료</span>
+    </div>
+  </div>
+
+  <div class="panel detail-panel-wrap">
+    <div class="detail-panel" id="detailPanel">
+      <div class="detail-empty"><span class="ic">🗺️</span>맨홀을 선택하면<br>조사 상세정보를 확인·수정할 수 있습니다.</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STORAGE_KEY = 'seoul-sewer-manhole-data';
+const STATUS_COLORS = {'미착수':'var(--st-none)','진행중':'var(--st-progress)','완료':'var(--st-done)'};
+const STATUS_HEX = {'미착수':'#4B5560','진행중':'#E8A33D','완료':'#3DDC84'};
+
+let state = { order: [], manholes: {} };
+let selectedId = null;
+let filterStatus = 'all';
+let searchTerm = '';
+let viewMode = 'map';
+
+function blankRecord(id,x,y,z){
+  return {id,x,y,z,status:'미착수',lidar:false,invert:'미확인',ladder:'미확인',fall:'미확인',inspector:'',date:'',note:''};
+}
+
+async function loadState(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY, true);
+    if(res && res.value){ state = JSON.parse(res.value); }
+  }catch(e){ /* no data yet */ }
+}
+async function saveState(){
+  try{
+    const r = await window.storage.set(STORAGE_KEY, JSON.stringify(state), true);
+    if(!r) showToast('저장 실패 (네트워크 확인)');
+  }catch(e){ console.error(e); showToast('저장 실패'); }
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+/* ---------- Excel parsing ---------- */
+document.getElementById('fileInput').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, {type:'array'});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true});
+  if(!rows.length){ showToast('빈 파일입니다'); return; }
+  const header = rows[0].map(h=>String(h??'').trim().toLowerCase());
+  const findIdx = (candidates, fallback) => {
+    for(const c of candidates){
+      const idx = header.findIndex(h=>h.includes(c));
+      if(idx!==-1) return idx;
+    }
+    return fallback;
+  };
+  const idIdx = findIdx(['맨홀','manhole','no','번호','id'], 0);
+  const xIdx  = findIdx(['x좌표','x'], 1);
+  const yIdx  = findIdx(['y좌표','y'], 2);
+  const zIdx  = findIdx(['표고','z좌표','z'], 3);
+
+  let added=0, updated=0;
+  for(let i=1;i<rows.length;i++){
+    const row = rows[i];
+    if(!row || !row.length) continue;
+    const id = String(row[idIdx] ?? '').trim();
+    if(!id) continue;
+    const x = parseFloat(row[xIdx]);
+    const y = parseFloat(row[yIdx]);
+    const z = parseFloat(row[zIdx]);
+    if(state.manholes[id]){
+      state.manholes[id].x = x; state.manholes[id].y = y; state.manholes[id].z = z;
+      updated++;
+    }else{
+      state.manholes[id] = blankRecord(id,x,y,z);
+      state.order.push(id);
+      added++;
+    }
+  }
+  await saveState();
+  showToast(`업로드 완료 · 신규 ${added}건 / 갱신 ${updated}건`);
+  renderAll();
+  e.target.value = '';
+});
+
+/* ---------- filters / search ---------- */
+document.getElementById('searchInput').addEventListener('input', (e)=>{
+  searchTerm = e.target.value.trim().toLowerCase();
+  renderAll();
+});
+document.getElementById('filterTabs').addEventListener('click', (e)=>{
+  const el = e.target.closest('.ftab');
+  if(!el) return;
+  filterStatus = el.dataset.f;
+  document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  renderAll();
+});
+document.querySelector('.view-toggle').addEventListener('click',(e)=>{
+  const b = e.target.closest('button');
+  if(!b) return;
+  viewMode = b.dataset.v;
+  document.querySelectorAll('.view-toggle button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  document.getElementById('mapHost').style.display = viewMode==='map' ? 'block':'none';
+  document.getElementById('tableHost').style.display = viewMode==='table' ? 'block':'none';
+  renderCenter();
+});
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  const rows = [['맨홀번호','X','Y','Z','상태','라이다촬영','인버트상태','사다리상태','추락방지시설상태','조사자','조사일자','비고']];
+  state.order.forEach(id=>{
+    const m = state.manholes[id];
+    if(!m) return;
+    rows.push([m.id,m.x,m.y,m.z,m.status,m.lidar?'Y':'N',m.invert,m.ladder,m.fall,m.inspector,m.date,m.note]);
+  });
+  const csv = rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '원형관로맨홀조사현황.csv';
+  a.click();
+});
+
+/* ---------- filtered list helper ---------- */
+function getFilteredIds(){
+  return state.order.filter(id=>{
+    const m = state.manholes[id];
+    if(!m) return false;
+    if(filterStatus!=='all' && m.status!==filterStatus) return false;
+    if(searchTerm && !m.id.toLowerCase().includes(searchTerm)) return false;
+    return true;
+  });
+}
+
+/* ---------- render: dashboard ---------- */
+function renderDashboard(){
+  const all = state.order.map(id=>state.manholes[id]).filter(Boolean);
+  const total = all.length;
+  const done = all.filter(m=>m.status==='완료').length;
+  const prog = all.filter(m=>m.status==='진행중').length;
+  const none = all.filter(m=>m.status==='미착수').length;
+  document.getElementById('totalCount').textContent = total;
+  document.getElementById('doneCount').textContent = done;
+  document.getElementById('progCount').textContent = prog;
+  document.getElementById('noneCount').textContent = none;
+  document.getElementById('totalCount2').textContent = total;
+  document.getElementById('doneCount2').textContent = done;
+  const pct = total ? Math.round(done/total*100) : 0;
+  document.getElementById('pct').textContent = pct;
+  document.getElementById('progFill').style.width = pct+'%';
+}
+
+/* ---------- render: left list ---------- */
+function renderList(){
+  const wrap = document.getElementById('listWrap');
+  const ids = getFilteredIds();
+  if(!state.order.length){
+    wrap.innerHTML = '<div class="empty-note">아직 업로드된 맨홀 데이터가 없습니다.<br>상단에서 엑셀 파일을 업로드하세요.</div>';
+    return;
+  }
+  if(!ids.length){
+    wrap.innerHTML = '<div class="empty-note">조건에 맞는 맨홀이 없습니다.</div>';
+    return;
+  }
+  wrap.innerHTML = ids.map(id=>{
+    const m = state.manholes[id];
+    const sel = id===selectedId ? 'selected':'';
+    return `<div class="mh-row ${sel}" data-id="${id}">
+      <span class="dot" style="background:${STATUS_COLORS[m.status]}"></span>
+      <span class="id">${m.id}</span>
+      <span class="st">${m.status}</span>
+    </div>`;
+  }).join('');
+  wrap.querySelectorAll('.mh-row').forEach(r=>{
+    r.addEventListener('click', ()=>{ selectedId = r.dataset.id; renderAll(); });
+  });
+}
+
+/* ---------- render: center (map or table) ---------- */
+function computeBounds(){
+  const pts = state.order.map(id=>state.manholes[id]).filter(m=>m && isFinite(m.x) && isFinite(m.y));
+  if(!pts.length) return null;
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  pts.forEach(p=>{ minX=Math.min(minX,p.x); maxX=Math.max(maxX,p.x); minY=Math.min(minY,p.y); maxY=Math.max(maxY,p.y); });
+  if(minX===maxX){ minX-=1; maxX+=1; }
+  if(minY===maxY){ minY-=1; maxY+=1; }
+  return {minX,maxX,minY,maxY};
+}
+
+function renderMap(){
+  const host = document.getElementById('mapHost');
+  const bounds = computeBounds();
+  const W = host.clientWidth || 800, H = host.clientHeight || 600;
+  const pad = 50;
+  if(!bounds){
+    host.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-dim);font-size:13px;text-align:center;padding:20px;">
+      엑셀 업로드 후 맨홀 위치가 이 곳에 평면도로 표시됩니다.</div>`;
+    return;
+  }
+  const {minX,maxX,minY,maxY} = bounds;
+  const sx = v => pad + (v-minX)/(maxX-minX) * (W-pad*2);
+  const sy = v => pad + (maxY-v)/(maxY-minY) * (H-pad*2); // flip Y so north is up
+
+  const ids = getFilteredIds();
+  const activeSet = new Set(ids);
+
+  // grid lines
+  let grid = '';
+  const gridCount = 10;
+  for(let i=0;i<=gridCount;i++){
+    const gx = pad + i*(W-pad*2)/gridCount;
+    const gy = pad + i*(H-pad*2)/gridCount;
+    grid += `<line x1="${gx}" y1="${pad}" x2="${gx}" y2="${H-pad}" stroke="var(--grid)" stroke-width="1"/>`;
+    grid += `<line x1="${pad}" y1="${gy}" x2="${W-pad}" y2="${gy}" stroke="var(--grid)" stroke-width="1"/>`;
+  }
+
+  // pipeline route polyline (sorted by numeric part of id, fallback upload order)
+  const sortedForLine = [...state.order].filter(id=>state.manholes[id] && isFinite(state.manholes[id].x)).sort((a,b)=>{
+    const na = parseFloat((a.match(/\d+/g)||[]).join('')) ; const nb = parseFloat((b.match(/\d+/g)||[]).join(''));
+    if(isFinite(na) && isFinite(nb)) return na-nb;
+    return 0;
+  });
+  const linePts = sortedForLine.map(id=>{
+    const m = state.manholes[id];
+    return `${sx(m.x)},${sy(m.y)}`;
+  }).join(' ');
+
+  let dots = '';
+  state.order.forEach(id=>{
+    const m = state.manholes[id];
+    if(!m || !isFinite(m.x) || !isFinite(m.y)) return;
+    const dim = activeSet.has(id) ? 1 : 0.15;
+    const isSel = id===selectedId;
+    const color = STATUS_HEX[m.status] || STATUS_HEX['미착수'];
+    const cx = sx(m.x), cy = sy(m.y);
+    dots += `<g data-id="${id}" class="mh-dot" style="opacity:${dim}" transform="translate(${cx},${cy})">`;
+    if(m.status==='진행중'){
+      dots += `<circle r="13" fill="${color}" class="pulse"/>`;
+    }
+    if(isSel){
+      dots += `<circle r="14" fill="none" stroke="var(--accent)" stroke-width="2"/>`;
+    }
+    dots += `<circle r="7" fill="${color}" stroke="#0A0F13" stroke-width="2"/>`;
+    dots += `<text y="-12" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="#B9C4CC">${m.id}</text>`;
+    dots += `</g>`;
+  });
+
+  host.innerHTML = `<svg class="map-svg" viewBox="0 0 ${W} ${H}">
+    <rect x="0" y="0" width="${W}" height="${H}" fill="#0A0F13"/>
+    ${grid}
+    ${linePts ? `<polyline points="${linePts}" fill="none" stroke="var(--accent-2)" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.5"/>` : ''}
+    <rect x="${pad}" y="${pad}" width="${W-pad*2}" height="${H-pad*2}" fill="url(#scanGrad)" class="scan-line"/>
+    <defs>
+      <linearGradient id="scanGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="var(--accent)" stop-opacity="0"/>
+        <stop offset="50%" stop-color="var(--accent)" stop-opacity="0.35"/>
+        <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    ${dots}
+  </svg>`;
+
+  const svg = host.querySelector('svg');
+  svg.querySelectorAll('.mh-dot').forEach(g=>{
+    g.addEventListener('click', ()=>{ selectedId = g.dataset.id; renderAll(); });
+    g.addEventListener('mouseenter', ()=>{
+      const m = state.manholes[g.dataset.id];
+      document.getElementById('coordReadout').textContent = `X: ${m.x}　Y: ${m.y}　Z: ${m.z}`;
+    });
+  });
+}
+
+function renderTable(){
+  const host = document.getElementById('tableHost');
+  const ids = getFilteredIds();
+  if(!ids.length){
+    host.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-dim);font-size:13px;">표시할 데이터가 없습니다.</div>`;
+    return;
+  }
+  const rowsHtml = ids.map(id=>{
+    const m = state.manholes[id];
+    const sel = id===selectedId ? 'selected':'';
+    return `<tr class="tbrow ${sel}" data-id="${id}">
+      <td style="color:${STATUS_HEX[m.status]};font-weight:700;">●</td>
+      <td>${m.id}</td><td>${m.x}</td><td>${m.y}</td><td>${m.z}</td>
+      <td>${m.status}</td><td>${m.lidar?'Y':'-'}</td>
+      <td>${m.invert}</td><td>${m.ladder}</td><td>${m.fall}</td>
+      <td>${m.inspector||'-'}</td><td>${m.date||'-'}</td>
+    </tr>`;
+  }).join('');
+  host.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr><th></th><th>맨홀번호</th><th>X</th><th>Y</th><th>Z</th><th>상태</th><th>라이다</th><th>인버트</th><th>사다리</th><th>추락방지</th><th>조사자</th><th>일자</th></tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table></div>`;
+  host.querySelectorAll('.tbrow').forEach(r=>{
+    r.addEventListener('click', ()=>{ selectedId = r.dataset.id; renderAll(); });
+  });
+}
+
+function renderCenter(){
+  if(viewMode==='map') renderMap(); else renderTable();
+}
+
+/* ---------- render: detail panel ---------- */
+function renderDetail(){
+  const panel = document.getElementById('detailPanel');
+  if(!selectedId || !state.manholes[selectedId]){
+    panel.innerHTML = `<div class="detail-empty"><span class="ic">🗺️</span>맨홀을 선택하면<br>조사 상세정보를 확인·수정할 수 있습니다.</div>`;
+    return;
+  }
+  const m = state.manholes[selectedId];
+  panel.innerHTML = `
+    <div class="d-title">${m.id}</div>
+    <div class="d-coords">X ${m.x}　Y ${m.y}　Z ${m.z}</div>
+
+    <div class="field">
+      <label>진행상태</label>
+      <select id="f-status" class="status-select">
+        <option value="미착수" ${m.status==='미착수'?'selected':''}>미착수</option>
+        <option value="진행중" ${m.status==='진행중'?'selected':''}>진행중</option>
+        <option value="완료" ${m.status==='완료'?'selected':''}>완료</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <div class="check-row"><input type="checkbox" id="f-lidar" ${m.lidar?'checked':''}><label style="margin:0;color:var(--text);font-size:12.5px;">라이다 촬영 완료</label></div>
+    </div>
+
+    <hr class="sep">
+
+    <div class="field">
+      <label>인버트 상태 (육안조사)</label>
+      <select id="f-invert">
+        ${['미확인','양호','보통','불량'].map(v=>`<option value="${v}" ${m.invert===v?'selected':''}>${v}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field">
+      <label>사다리 상태 (육안조사)</label>
+      <select id="f-ladder">
+        ${['미확인','양호','보통','불량','없음'].map(v=>`<option value="${v}" ${m.ladder===v?'selected':''}>${v}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field">
+      <label>추락방지시설 상태 (육안조사)</label>
+      <select id="f-fall">
+        ${['미확인','양호','보통','불량','없음'].map(v=>`<option value="${v}" ${m.fall===v?'selected':''}>${v}</option>`).join('')}
+      </select>
+    </div>
+
+    <hr class="sep">
+
+    <div class="field">
+      <label>조사자</label>
+      <input type="text" id="f-inspector" value="${m.inspector||''}" placeholder="이름 입력">
+    </div>
+    <div class="field">
+      <label>조사일자</label>
+      <input type="date" id="f-date" value="${m.date||''}">
+    </div>
+    <div class="field">
+      <label>비고</label>
+      <textarea id="f-note" placeholder="특이사항 입력">${m.note||''}</textarea>
+    </div>
+  `;
+
+  const bind = (elId, prop, evt='change') => {
+    const el = document.getElementById(elId);
+    el.addEventListener(evt, async ()=>{
+      const v = el.type==='checkbox' ? el.checked : el.value;
+      state.manholes[selectedId][prop] = v;
+      await saveState();
+      renderDashboard(); renderList(); renderCenter();
+      showToast('저장됨');
+    });
+  };
+  bind('f-status','status');
+  bind('f-lidar','lidar');
+  bind('f-invert','invert');
+  bind('f-ladder','ladder');
+  bind('f-fall','fall');
+  bind('f-inspector','inspector','input');
+  bind('f-date','date');
+  bind('f-note','note','input');
+}
+
+function renderAll(){
+  renderDashboard();
+  renderList();
+  renderCenter();
+  renderDetail();
+}
+
+/* ---------- shared-data polling (near real-time sync) ---------- */
+setInterval(async ()=>{
+  const active = document.activeElement;
+  if(active && ['INPUT','TEXTAREA','SELECT'].includes(active.tagName)) return;
+  try{
+    const res = await window.storage.get(STORAGE_KEY, true);
+    if(res && res.value){
+      const remote = JSON.parse(res.value);
+      if(JSON.stringify(remote) !== JSON.stringify(state)){
+        state = remote;
+        renderAll();
+      }
+    }
+  }catch(e){ /* ignore */ }
+}, 12000);
+
+window.addEventListener('resize', ()=>renderCenter());
+
+(async function init(){
+  await loadState();
+  renderAll();
+})();
+</script>
+</body>
+</html>
