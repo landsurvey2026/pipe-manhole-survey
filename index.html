@@ -338,7 +338,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v2.0 · 2026-07-23';
+const APP_VERSION = 'v2.1 · 2026-07-23';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 /* 여러 사람이 실시간으로 데이터를 공유하려면 아래에 Firebase Realtime Database 주소를 넣으세요.
    예: 'https://landsurvey2026-xxxxx-default-rtdb.asia-southeast1.firebasedatabase.app'
@@ -500,6 +500,7 @@ function updateSyncBadge(){
 
 async function loadState(){
   let loadedFromFirebase = false;
+  let remoteWasEmpty = false;
   if(useFirebase()){
     try{
       const res = await fetch(fbEndpoint('manholeSurvey'));
@@ -510,6 +511,8 @@ async function loadState(){
           state = data;
           loadedFromFirebase = true;
           try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+        }else{
+          remoteWasEmpty = true;
         }
       }else{
         firebaseHealthy = false;
@@ -529,6 +532,12 @@ async function loadState(){
   if(!state.controlPoints) state.controlPoints = [];
   if(!state.inspectors) state.inspectors = [];
   updateSyncBadge();
+
+  // 공유 저장소가 비어있는데 이 기기(로컬)에는 이미 데이터가 있다면 최초 1회 자동으로 올려서 다른 기기와 공유되게 함
+  if(useFirebase() && remoteWasEmpty && firebaseHealthy && (state.order.length || (state.controlPoints && state.controlPoints.length))){
+    await saveState();
+    showToast('기존 데이터를 공유 저장소에 업로드했습니다');
+  }
 }
 let lastSaveAt = 0;
 async function saveState(){
