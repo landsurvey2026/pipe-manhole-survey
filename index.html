@@ -35,6 +35,9 @@ body{display:flex;flex-direction:column;min-height:100vh;}
 header{padding:14px 20px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#0B63CE,#0A4FA3);display:flex;align-items:center;gap:18px;flex-wrap:wrap;box-shadow:0 2px 10px rgba(11,99,206,0.18);}
 .brand{display:flex;flex-direction:column;gap:2px;}
 .brand .title{font-weight:700;font-size:16px;letter-spacing:0.2px;color:#fff;}
+.sync-badge{font-size:10px;vertical-align:middle;cursor:default;}
+.sync-badge[data-mode="shared"]{color:#4ADE80;}
+.sync-badge[data-mode="local"]{color:#FFD48A;}
 .brand .sub{font-size:10.5px;color:rgba(255,255,255,0.75);font-family:var(--mono);letter-spacing:0.4px;}
 .dash{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap;}
 .dash-card{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:8px;padding:8px 14px;min-width:78px;text-align:center;}
@@ -195,7 +198,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <header>
   <div class="brand">
-    <div class="title">원형관로 조사 현황</div>
+    <div class="title">원형관로 조사 현황 <span class="sync-badge" id="syncBadge">●</span></div>
     <div class="sub">CIRCULAR SEWER PIPE · MANHOLE SURVEY CONTROL · LiDAR SCAN / INVERT·LADDER·FALL-PREVENTION INSPECTION</div>
   </div>
   <div class="top-toolbar">
@@ -331,6 +334,12 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
+/* 여러 사람이 실시간으로 데이터를 공유하려면 아래에 Firebase Realtime Database 주소를 넣으세요.
+   예: 'https://landsurvey2026-xxxxx-default-rtdb.asia-southeast1.firebasedatabase.app'
+   비워두면(localStorage만 사용) 이 브라우저(기기)에서만 데이터가 저장됩니다. */
+const FIREBASE_URL = 'https://seoul-waterworks-default-rtdb.asia-southeast1.firebasedatabase.app';
+function fbEndpoint(path){ return `${FIREBASE_URL}/${path}.json`; }
+const useFirebase = () => !!FIREBASE_URL;
 const STATUS_COLORS = {'미착수':'var(--st-none)','진행중':'var(--st-progress)','완료':'var(--st-done)'};
 const STATUS_HEX = {'미착수':'#FF5252','진행중':'#FFC400','완료':'#00C853'};
 
@@ -468,19 +477,42 @@ function blankRecord(id,x,y,z){
 }
 
 async function loadState(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(raw){ state = JSON.parse(raw); }
-  }catch(e){ /* no data yet */ }
+  let loadedFromFirebase = false;
+  if(useFirebase()){
+    try{
+      const res = await fetch(fbEndpoint('manholeSurvey'));
+      if(res.ok){
+        const data = await res.json();
+        if(data){
+          state = data;
+          loadedFromFirebase = true;
+          try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+        }
+      }
+    }catch(e){ /* 오프라인이거나 연결 실패 - 아래 localStorage로 대체 */ }
+  }
+  if(!loadedFromFirebase){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw){ state = JSON.parse(raw); }
+    }catch(e){ /* no data yet */ }
+  }
   if(!state.controlPoints) state.controlPoints = [];
   if(!state.inspectors) state.inspectors = [];
 }
 let lastSaveAt = 0;
 async function saveState(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){ /* ignore */ }
+  lastSaveAt = Date.now();
+  if(!useFirebase()) return;
   try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    lastSaveAt = Date.now();
-  }catch(e){ console.error(e); showToast('저장 실패 (브라우저 저장공간 확인)'); }
+    const res = await fetch(fbEndpoint('manholeSurvey'), {
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(state)
+    });
+    if(!res.ok) showToast('공유 저장 실패 (인터넷 연결 확인)');
+  }catch(e){ console.error(e); showToast('공유 저장 실패 (인터넷 연결 확인)'); }
 }
 
 function showToast(msg){
@@ -1065,26 +1097,50 @@ function renderAll(){
   renderInspectorList();
 }
 
-/* ---------- 같은 브라우저의 다른 탭과 동기화 (localStorage 기반) ---------- */
-setInterval(()=>{
+/* ---------- 다른 사람/다른 기기와 실시간에 가깝게 동기화 ---------- */
+setInterval(async ()=>{
   const active = document.activeElement;
   if(active && ['INPUT','TEXTAREA','SELECT'].includes(active.tagName)) return;
-  if(Date.now() - lastSaveAt < 15000) return; // 방금 내가 저장했으면 잠시 건너뛰어 덮어쓰기 방지
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(raw){
-      const remote = JSON.parse(raw);
-      if(JSON.stringify(remote) !== JSON.stringify(state)){
+  if(Date.now() - lastSaveAt < 8000) return; // 방금 내가 저장했으면 잠시 건너뛰어 덮어쓰기 방지
+  if(useFirebase()){
+    try{
+      const res = await fetch(fbEndpoint('manholeSurvey'));
+      if(!res.ok) return;
+      const remote = await res.json();
+      if(remote && JSON.stringify(remote) !== JSON.stringify(state)){
         state = remote;
+        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
         renderAll();
       }
-    }
-  }catch(e){ /* ignore */ }
-}, 12000);
+    }catch(e){ /* 오프라인 등 - 무시 */ }
+  }else{
+    // Firebase 미설정 시: 같은 브라우저의 다른 탭과만 동기화
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw){
+        const remote = JSON.parse(raw);
+        if(JSON.stringify(remote) !== JSON.stringify(state)){
+          state = remote;
+          renderAll();
+        }
+      }
+    }catch(e){ /* ignore */ }
+  }
+}, 8000);
 
 window.addEventListener('resize', ()=>{ renderCenter(); updateMainLayout(); });
 
 (async function init(){
+  const badge = document.getElementById('syncBadge');
+  if(badge){
+    if(useFirebase()){
+      badge.dataset.mode = 'shared';
+      badge.title = '여러 사람과 공유 중 (Firebase)';
+    }else{
+      badge.dataset.mode = 'local';
+      badge.title = '이 기기에만 저장됨 (공유 안 됨) — Firebase 주소를 설정하면 여러 사람과 공유할 수 있습니다';
+    }
+  }
   await loadState();
   renderAll();
   setMobileTab('map');
