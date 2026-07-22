@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>원형관로 맨홀조사 현황판</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
@@ -112,6 +113,37 @@ tr.tbrow.selected{background:rgba(11,99,206,0.08);}
 .status-select{font-weight:700;}
 hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#152026;border:1px solid var(--accent);color:var(--accent);padding:9px 18px;border-radius:20px;font-size:12.5px;font-family:var(--mono);opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;z-index:100;}
+
+/* mobile tab bar */
+.mobile-tabbar{display:none;}
+@media (max-width:860px){
+  header{padding:10px 12px;gap:8px;}
+  .brand .title{font-size:14px;}
+  .brand .sub{display:none;}
+  .dash{gap:6px;}
+  .dash-card{min-width:52px;padding:6px 8px;}
+  .dash-card .n{font-size:15px;}
+  .dash-card .l{font-size:9px;}
+  .progress-wrap{width:96px;}
+  .progress-label{font-size:9.5px;}
+
+  .main{grid-template-columns:1fr;}
+  .panel{display:none !important;border-right:none;border-left:none;}
+  .panel.mobile-active{display:flex !important;}
+  .main > .panel:last-child{border-left:none;}
+
+  .mobile-tabbar{display:flex;flex-shrink:0;background:var(--panel);border-top:1px solid var(--border);}
+  .mobile-tabbar button{flex:1;background:transparent;border:none;font-family:var(--sans);font-size:11px;color:var(--text-dim);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));cursor:pointer;}
+  .mobile-tabbar button .ic{font-size:18px;}
+  .mobile-tabbar button.active{color:var(--accent);font-weight:700;}
+
+  .side-panel .list-wrap{flex:1;}
+  .view-toggle{top:8px;left:8px;}
+  #basemapToggle{top:44px;}
+  .export-btn{top:8px;right:8px;font-size:10.5px;padding:6px 9px;}
+  .legend{bottom:8px;right:8px;flex-wrap:wrap;max-width:60%;font-size:9.5px;gap:6px;}
+  .coord-readout{display:none;}
+}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
 
 /* map svg elements */
@@ -201,6 +233,12 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
   </div>
 </div>
 
+<div class="mobile-tabbar">
+  <button class="tab-list" data-tab="list"><span class="ic">📋</span>목록</button>
+  <button class="tab-map active" data-tab="map"><span class="ic">🗺️</span>지도</button>
+  <button class="tab-detail" data-tab="detail"><span class="ic">📝</span>상세</button>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -210,6 +248,26 @@ const STATUS_HEX = {'미착수':'#4B5560','진행중':'#E8A33D','완료':'#3DDC8
 
 let state = { order: [], manholes: {}, controlPoints: [] };
 let selectedId = null;
+let mobileTab = 'map';
+function selectManhole(id){
+  selectedId = id;
+  renderAll();
+  if(window.innerWidth <= 860) setMobileTab('detail');
+}
+function setMobileTab(tab){
+  mobileTab = tab;
+  const sidePanel = document.querySelector('.side-panel');
+  const centerPanel = document.querySelector('.center-panel');
+  const detailPanel = document.querySelector('.detail-panel-wrap');
+  if(sidePanel) sidePanel.classList.toggle('mobile-active', tab==='list');
+  if(centerPanel) centerPanel.classList.toggle('mobile-active', tab==='map');
+  if(detailPanel) detailPanel.classList.toggle('mobile-active', tab==='detail');
+  document.querySelectorAll('.mobile-tabbar button').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  if(tab==='map' && leafletMap) setTimeout(()=>leafletMap.invalidateSize(), 80);
+}
+document.querySelectorAll('.mobile-tabbar button').forEach(b=>{
+  b.addEventListener('click', ()=>setMobileTab(b.dataset.tab));
+});
 let filterStatus = 'all';
 let searchTerm = '';
 let viewMode = 'map';
@@ -434,7 +492,7 @@ function renderList(){
     </div>`;
   }).join('');
   wrap.querySelectorAll('.mh-row').forEach(r=>{
-    r.addEventListener('click', ()=>{ selectedId = r.dataset.id; renderAll(); });
+    r.addEventListener('click', ()=>{ selectManhole(r.dataset.id); });
   });
 }
 
@@ -547,7 +605,7 @@ function renderMap(){
       opacity: isActive ? 1 : 0.2
     }).addTo(markerLayer);
     marker.bindTooltip(m.id, {direction:'top', offset:[0,-8], opacity:0.9});
-    marker.on('click', ()=>{ selectedId = id; renderAll(); });
+    marker.on('click', ()=>{ selectManhole(id); });
     marker.on('mouseover', ()=>{
       document.getElementById('coordReadout').textContent = `X: ${m.x}　Y: ${m.y}`;
     });
@@ -583,7 +641,7 @@ function renderTable(){
     <tbody>${rowsHtml}</tbody>
   </table></div>`;
   host.querySelectorAll('.tbrow').forEach(r=>{
-    r.addEventListener('click', ()=>{ selectedId = r.dataset.id; renderAll(); });
+    r.addEventListener('click', ()=>{ selectManhole(r.dataset.id); });
   });
 }
 
@@ -702,6 +760,7 @@ window.addEventListener('resize', ()=>renderCenter());
 (async function init(){
   await loadState();
   renderAll();
+  setMobileTab('map');
 })();
 </script>
 </body>
