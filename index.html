@@ -175,7 +175,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
   .panel.mobile-active{display:flex !important;}
   .main > .panel:last-child{border-left:none;}
 
-  .mobile-tabbar{display:flex;flex-shrink:0;background:var(--panel);border-top:1px solid var(--border);}
+  .mobile-tabbar{display:flex;flex-shrink:0;background:var(--panel);border-top:1px solid var(--border);position:relative;z-index:950;}
   .mobile-tabbar button{flex:1;background:transparent;border:none;font-family:var(--sans);font-size:11px;color:var(--text-dim);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));cursor:pointer;}
   .mobile-tabbar button .ic{font-size:18px;}
   .mobile-tabbar button.active{color:var(--accent);font-weight:700;}
@@ -338,7 +338,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v2.1 · 2026-07-23';
+const APP_VERSION = 'v2.2 · 2026-07-23';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 /* 여러 사람이 실시간으로 데이터를 공유하려면 아래에 Firebase Realtime Database 주소를 넣으세요.
    예: 'https://landsurvey2026-xxxxx-default-rtdb.asia-southeast1.firebasedatabase.app'
@@ -361,6 +361,7 @@ function updateMainLayout(){
 }
 function selectManhole(id){
   selectedId = id;
+  closeMenuModal();
   renderAll();
   if(window.innerWidth <= 860) setMobileTab('detail');
 }
