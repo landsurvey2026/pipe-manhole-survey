@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <title>원형관로 맨홀조사 현황판</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
 <style>
 :root{
   --bg:#0B1014;
@@ -73,14 +76,14 @@ header{padding:14px 20px;border-bottom:1px solid var(--border);background:linear
 
 /* center map */
 .center-panel{position:relative;background:#0A0F13;}
-.view-toggle{position:absolute;top:12px;left:12px;z-index:5;display:flex;gap:6px;background:rgba(18,26,32,0.85);padding:4px;border-radius:8px;border:1px solid var(--border);backdrop-filter:blur(4px);}
+.view-toggle{position:absolute;top:12px;left:12px;z-index:410;display:flex;gap:6px;background:rgba(18,26,32,0.85);padding:4px;border-radius:8px;border:1px solid var(--border);backdrop-filter:blur(4px);}
 .view-toggle button{background:transparent;border:none;color:var(--text-dim);font-size:12px;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:var(--sans);}
 .view-toggle button.active{background:var(--accent);color:#03211E;font-weight:700;}
-.export-btn{position:absolute;top:12px;right:12px;z-index:5;background:rgba(18,26,32,0.85);border:1px solid var(--border);color:var(--text-dim);font-size:11.5px;padding:7px 12px;border-radius:8px;cursor:pointer;font-family:var(--mono);}
+.export-btn{position:absolute;top:12px;right:12px;z-index:410;background:rgba(18,26,32,0.85);border:1px solid var(--border);color:var(--text-dim);font-size:11.5px;padding:7px 12px;border-radius:8px;cursor:pointer;font-family:var(--mono);}
 .export-btn:hover{border-color:var(--accent);color:var(--accent);}
 .map-svg{width:100%;height:100%;display:block;}
-.coord-readout{position:absolute;bottom:10px;left:12px;font-family:var(--mono);font-size:11px;color:var(--accent);background:rgba(18,26,32,0.85);padding:6px 10px;border-radius:6px;border:1px solid var(--border);}
-.legend{position:absolute;bottom:10px;right:12px;display:flex;gap:12px;background:rgba(18,26,32,0.85);padding:7px 12px;border-radius:8px;border:1px solid var(--border);font-size:10.5px;color:var(--text-dim);}
+.coord-readout{position:absolute;bottom:10px;left:12px;z-index:410;font-family:var(--mono);font-size:11px;color:var(--accent);background:rgba(18,26,32,0.85);padding:6px 10px;border-radius:6px;border:1px solid var(--border);}
+.legend{position:absolute;bottom:10px;right:12px;z-index:410;display:flex;gap:12px;background:rgba(18,26,32,0.85);padding:7px 12px;border-radius:8px;border:1px solid var(--border);font-size:10.5px;color:var(--text-dim);}
 .legend span{display:inline-flex;align-items:center;gap:5px;}
 .legend .dot{width:8px;height:8px;}
 .table-wrap{width:100%;height:100%;overflow:auto;padding:10px 14px 14px;}
@@ -359,98 +362,87 @@ function renderList(){
   });
 }
 
-/* ---------- render: center (map or table) ---------- */
-function computeBounds(){
-  const pts = state.order.map(id=>state.manholes[id]).filter(m=>m && isFinite(m.x) && isFinite(m.y));
-  if(!pts.length) return null;
-  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
-  pts.forEach(p=>{ minX=Math.min(minX,p.x); maxX=Math.max(maxX,p.x); minY=Math.min(minY,p.y); maxY=Math.max(maxY,p.y); });
-  if(minX===maxX){ minX-=1; maxX+=1; }
-  if(minY===maxY){ minY-=1; maxY+=1; }
-  return {minX,maxX,minY,maxY};
+/* ---------- render: center (map or table) — VWorld + Leaflet ---------- */
+const VWORLD_KEY = 'C4DA8041-6991-371D-9C2B-F8C2BCC78E5E';
+// 중부원점(2010, GRS80) — 엑셀 X=남북(종거), Y=동서(횡거)
+proj4.defs('EPSG:5186','+proj=tmerc +lat_0=38 +lon_0=127 +k=1 +x_0=200000 +y_0=600000 +ellps=GRS80 +units=m +no_defs');
+
+function toLatLng(x,y){
+  if(!isFinite(x) || !isFinite(y)) return null;
+  try{
+    const [lon,lat] = proj4('EPSG:5186','WGS84',[y,x]); // proj4 expects [easting(Y), northing(X)]
+    if(!isFinite(lon) || !isFinite(lat)) return null;
+    return [lat,lon];
+  }catch(e){ return null; }
+}
+
+let leafletMap = null, markerLayer = null, routeLayer = null, hasFitBounds = false;
+function initLeaflet(){
+  if(leafletMap) return;
+  const host = document.getElementById('mapHost');
+  leafletMap = L.map(host, {zoomControl:false}).setView([37.5665,126.9780], 12);
+  L.control.zoom({position:'bottomright'}).addTo(leafletMap);
+  L.tileLayer(`https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Base/{z}/{y}/{x}.png`, {
+    maxZoom:19, tileSize:256, attribution:'ⓒ VWorld'
+  }).addTo(leafletMap);
+  markerLayer = L.layerGroup().addTo(leafletMap);
+  routeLayer = L.layerGroup().addTo(leafletMap);
 }
 
 function renderMap(){
-  const host = document.getElementById('mapHost');
-  const bounds = computeBounds();
-  const W = host.clientWidth || 800, H = host.clientHeight || 600;
-  const pad = 50;
-  if(!bounds){
-    host.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-dim);font-size:13px;text-align:center;padding:20px;">
-      엑셀 업로드 후 맨홀 위치가 이 곳에 평면도로 표시됩니다.</div>`;
-    return;
-  }
-  const {minX,maxX,minY,maxY} = bounds;
-  const sx = v => pad + (v-minX)/(maxX-minX) * (W-pad*2);
-  const sy = v => pad + (maxY-v)/(maxY-minY) * (H-pad*2); // flip Y so north is up
-
+  initLeaflet();
   const ids = getFilteredIds();
   const activeSet = new Set(ids);
+  markerLayer.clearLayers();
+  routeLayer.clearLayers();
 
-  // grid lines
-  let grid = '';
-  const gridCount = 10;
-  for(let i=0;i<=gridCount;i++){
-    const gx = pad + i*(W-pad*2)/gridCount;
-    const gy = pad + i*(H-pad*2)/gridCount;
-    grid += `<line x1="${gx}" y1="${pad}" x2="${gx}" y2="${H-pad}" stroke="var(--grid)" stroke-width="1"/>`;
-    grid += `<line x1="${pad}" y1="${gy}" x2="${W-pad}" y2="${gy}" stroke="var(--grid)" stroke-width="1"/>`;
-  }
+  const boundsPts = [];
 
-  // pipeline route polyline (sorted by numeric part of id, fallback upload order)
+  // pipeline route (연결 순서: 맨홀번호 내 숫자 기준 정렬, 실패시 업로드 순서)
   const sortedForLine = [...state.order].filter(id=>state.manholes[id] && isFinite(state.manholes[id].x)).sort((a,b)=>{
-    const na = parseFloat((a.match(/\d+/g)||[]).join('')) ; const nb = parseFloat((b.match(/\d+/g)||[]).join(''));
+    const na = parseFloat((a.match(/\d+/g)||[]).join(''));
+    const nb = parseFloat((b.match(/\d+/g)||[]).join(''));
     if(isFinite(na) && isFinite(nb)) return na-nb;
     return 0;
   });
-  const linePts = sortedForLine.map(id=>{
-    const m = state.manholes[id];
-    return `${sx(m.x)},${sy(m.y)}`;
-  }).join(' ');
+  const linePts = sortedForLine.map(id=>toLatLng(state.manholes[id].x, state.manholes[id].y)).filter(Boolean);
+  if(linePts.length>1){
+    L.polyline(linePts, {color:'#4C8DFF', weight:3, opacity:0.55, dashArray:'2 8'}).addTo(routeLayer);
+  }
 
-  let dots = '';
+  if(!linePts.length && !state.order.length){
+    // no data yet — leave base map showing, no markers
+  }
+
   state.order.forEach(id=>{
     const m = state.manholes[id];
-    if(!m || !isFinite(m.x) || !isFinite(m.y)) return;
-    const dim = activeSet.has(id) ? 1 : 0.15;
+    if(!m) return;
+    const ll = toLatLng(m.x, m.y);
+    if(!ll) return;
+    boundsPts.push(ll);
+    const isActive = activeSet.has(id);
     const isSel = id===selectedId;
     const color = STATUS_HEX[m.status] || STATUS_HEX['미착수'];
-    const cx = sx(m.x), cy = sy(m.y);
-    dots += `<g data-id="${id}" class="mh-dot" style="opacity:${dim}" transform="translate(${cx},${cy})">`;
-    if(m.status==='진행중'){
-      dots += `<circle r="13" fill="${color}" class="pulse"/>`;
-    }
-    if(isSel){
-      dots += `<circle r="14" fill="none" stroke="var(--accent)" stroke-width="2"/>`;
-    }
-    dots += `<circle r="7" fill="${color}" stroke="#0A0F13" stroke-width="2"/>`;
-    dots += `<text y="-12" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="#B9C4CC">${m.id}</text>`;
-    dots += `</g>`;
-  });
-
-  host.innerHTML = `<svg class="map-svg" viewBox="0 0 ${W} ${H}">
-    <rect x="0" y="0" width="${W}" height="${H}" fill="#0A0F13"/>
-    ${grid}
-    ${linePts ? `<polyline points="${linePts}" fill="none" stroke="var(--accent-2)" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.5"/>` : ''}
-    <rect x="${pad}" y="${pad}" width="${W-pad*2}" height="${H-pad*2}" fill="url(#scanGrad)" class="scan-line"/>
-    <defs>
-      <linearGradient id="scanGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="var(--accent)" stop-opacity="0"/>
-        <stop offset="50%" stop-color="var(--accent)" stop-opacity="0.35"/>
-        <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
-      </linearGradient>
-    </defs>
-    ${dots}
-  </svg>`;
-
-  const svg = host.querySelector('svg');
-  svg.querySelectorAll('.mh-dot').forEach(g=>{
-    g.addEventListener('click', ()=>{ selectedId = g.dataset.id; renderAll(); });
-    g.addEventListener('mouseenter', ()=>{
-      const m = state.manholes[g.dataset.id];
+    const marker = L.circleMarker(ll, {
+      radius: isSel ? 10 : 7,
+      color: isSel ? '#2DD4C8' : '#0A0F13',
+      weight: isSel ? 3 : 1.5,
+      fillColor: color,
+      fillOpacity: isActive ? 0.95 : 0.15,
+      opacity: isActive ? 1 : 0.2
+    }).addTo(markerLayer);
+    marker.bindTooltip(m.id, {direction:'top', offset:[0,-8], opacity:0.9});
+    marker.on('click', ()=>{ selectedId = id; renderAll(); });
+    marker.on('mouseover', ()=>{
       document.getElementById('coordReadout').textContent = `X: ${m.x}　Y: ${m.y}　Z: ${m.z}`;
     });
   });
+
+  if(boundsPts.length && !hasFitBounds){
+    leafletMap.fitBounds(L.latLngBounds(boundsPts), {padding:[50,50]});
+    hasFitBounds = true;
+  }
+  setTimeout(()=>{ if(leafletMap) leafletMap.invalidateSize(); }, 60);
 }
 
 function renderTable(){
