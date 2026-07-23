@@ -371,7 +371,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v2.7 · 2026-07-23';
+const APP_VERSION = 'v2.8 · 2026-07-23';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 /* 여러 사람이 실시간으로 데이터를 공유하려면 아래에 Firebase Realtime Database 주소를 넣으세요.
    예: 'https://landsurvey2026-xxxxx-default-rtdb.asia-southeast1.firebasedatabase.app'
@@ -615,11 +615,27 @@ async function saveState(){
   updateSyncBadge();
 }
 
-function showToast(msg){
+function showToast(msg, actionLabel, actionFn){
   const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
+  if(actionLabel && actionFn){
+    t.innerHTML = '';
+    const span = document.createElement('span');
+    span.textContent = msg;
+    const btn = document.createElement('button');
+    btn.textContent = actionLabel;
+    btn.style.cssText = 'margin-left:10px;background:none;border:none;color:#7FD4FF;font-weight:700;cursor:pointer;text-decoration:underline;font-family:var(--mono);font-size:12.5px;';
+    btn.addEventListener('click', ()=>{
+      actionFn();
+      t.classList.remove('show');
+    });
+    t.appendChild(span);
+    t.appendChild(btn);
+  }else{
+    t.textContent = msg;
+  }
+  t.classList.add('show');
   clearTimeout(t._timer);
-  t._timer = setTimeout(()=>t.classList.remove('show'), 1800);
+  t._timer = setTimeout(()=>t.classList.remove('show'), actionLabel ? 5500 : 1800);
 }
 
 /* ---------- 기준점(Control Point) 업로드 — X,Y,Z 모두 사용 ---------- */
@@ -918,10 +934,23 @@ function fromLatLng(lat,lon){
 /* ---------- 맨홀 위치 이동 / 새 맨홀 추가 (지도 클릭으로 좌표 지정) ---------- */
 let moveModeId = null;
 let addModeId = null;
+let lastMoveUndo = null;
 function startMoveMode(id){
   moveModeId = id;
   closeDetailModal();
   showToast('지도를 눌러 새 위치를 선택하세요');
+}
+function undoLastMove(){
+  if(!lastMoveUndo) return;
+  const {id, prevX, prevY} = lastMoveUndo;
+  lastMoveUndo = null;
+  if(state.manholes[id]){
+    state.manholes[id].x = prevX;
+    state.manholes[id].y = prevY;
+    saveState();
+    renderAll();
+    showToast('원래 위치로 되돌렸습니다');
+  }
 }
 function handleMapPlacementClick(latlng){
   const coords = fromLatLng(latlng.lat, latlng.lng);
@@ -929,13 +958,20 @@ function handleMapPlacementClick(latlng){
   if(moveModeId){
     const id = moveModeId;
     moveModeId = null;
-    if(state.manholes[id]){
-      state.manholes[id].x = coords.x;
-      state.manholes[id].y = coords.y;
+    const m = state.manholes[id];
+    if(m){
+      const prevX = m.x, prevY = m.y;
+      if(!confirm(`'${id}' 맨홀을 이 위치로 이동할까요?\n\n기존 좌표: X ${prevX}　Y ${prevY}\n새 좌표: X ${coords.x}　Y ${coords.y}`)){
+        showToast('이동이 취소되었습니다');
+        return true;
+      }
+      m.x = coords.x;
+      m.y = coords.y;
+      lastMoveUndo = {id, prevX, prevY};
       saveState();
       renderAll();
       selectManhole(id);
-      showToast('위치가 이동되었습니다');
+      showToast('위치가 이동되었습니다', '되돌리기', undoLastMove);
     }
     return true;
   }
@@ -1195,9 +1231,10 @@ function renderMap(){
         selectingForMove = false;
         document.querySelectorAll('.locate-btn-active').forEach(b=>b.classList.remove('locate-btn-active'));
         startMoveMode(id);
-      }else{
-        selectManhole(id);
       }
+    });
+    marker.on('dblclick', ()=>{
+      if(!selectingForMove) selectManhole(id);
     });
     markerRefs.push({id, marker});
   });
