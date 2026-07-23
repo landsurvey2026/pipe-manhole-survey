@@ -140,6 +140,8 @@ header{padding:14px 20px;border-bottom:1px solid var(--border);background:linear
 .map-svg{width:100%;height:100%;display:block;}
 .legend{position:absolute;bottom:10px;left:12px;z-index:410;display:flex;gap:12px;background:rgba(18,26,32,0.85);padding:7px 12px;border-radius:8px;border:1px solid var(--border);font-size:10.5px;color:var(--text-dim);}
 .leaflet-control-attribution{font-size:10px;color:var(--text-dim);background:rgba(255,255,255,0.85);}
+.mh-label{background:rgba(255,255,255,0.92);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--text);box-shadow:none;}
+.mh-label::before{border-top-color:rgba(255,255,255,0.92) !important;}
 .locate-btn{display:flex;align-items:center;justify-content:center;width:30px;height:30px;background:#fff;font-size:16px;text-decoration:none;cursor:pointer;}
 .locate-btn:hover{background:#f4f4f4;}
 .legend span{display:inline-flex;align-items:center;gap:5px;}
@@ -200,6 +202,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
   .view-toggle{top:8px;left:8px;}
   #basemapToggle{top:44px;}
   .legend{bottom:8px;left:8px;flex-wrap:wrap;max-width:60%;font-size:9.5px;gap:6px;}
+  .leaflet-top.leaflet-left{top:88px;}
 }
 .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
 
@@ -367,7 +370,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v2.5 · 2026-07-23';
+const APP_VERSION = 'v2.6 · 2026-07-23';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 /* 여러 사람이 실시간으로 데이터를 공유하려면 아래에 Firebase Realtime Database 주소를 넣으세요.
    예: 'https://landsurvey2026-xxxxx-default-rtdb.asia-southeast1.firebasedatabase.app'
@@ -400,6 +403,17 @@ function deselectManhole(){
   selectedId = null;
   closeDetailModal();
   renderAll();
+}
+async function deleteManhole(id){
+  if(!state.manholes[id]) return;
+  if(!confirm(`'${id}' 맨홀을 삭제할까요? 조사 기록도 함께 삭제되며 되돌릴 수 없습니다.`)) return;
+  delete state.manholes[id];
+  state.order = state.order.filter(x=>x!==id);
+  if(selectedId===id) selectedId = null;
+  closeDetailModal();
+  await saveState();
+  renderAll();
+  showToast(`'${id}' 맨홀이 삭제되었습니다`);
 }
 document.getElementById('detailBackdrop').addEventListener('click', closeDetailModal);
 
@@ -1010,14 +1024,16 @@ function initLeaflet(){
     maxZoom:21,
     attributionControl:false
   }).setView([37.5665,126.9780], 12);
-  L.control.zoom({position:'topright'}).addTo(leafletMap);
-  leafletMap.addControl(new LocateControl());
-  leafletMap.addControl(new AddManholeControl());
+  const cornerPos = window.innerWidth <= 860 ? 'topleft' : 'topright';
+  L.control.zoom({position:cornerPos}).addTo(leafletMap);
+  leafletMap.addControl(new LocateControl({position:cornerPos}));
+  leafletMap.addControl(new AddManholeControl({position:cornerPos}));
   L.control.attribution({prefix:false, position:'bottomright'}).addAttribution('Seo Young Min').addTo(leafletMap);
 
   leafletMap.on('click', (e)=>{
     if(moveModeId || addModeId){ handleMapPlacementClick(e.latlng); }
   });
+  leafletMap.on('zoomend moveend', updateLabelVisibility);
 
   leafletMap.on('locationfound', (e)=>{
     document.querySelectorAll('.locate-btn').forEach(b=>b.innerHTML='📍');
@@ -1101,11 +1117,35 @@ function manholeIcon(color, isSel, isActive){
   });
 }
 
+const LABEL_MIN_ZOOM = 17;
+let markerRefs = [];
+function updateLabelVisibility(){
+  if(!leafletMap) return;
+  const zoom = leafletMap.getZoom();
+  if(zoom < LABEL_MIN_ZOOM){
+    markerRefs.forEach(r=>r.marker.closeTooltip());
+    return;
+  }
+  const shown = [];
+  const MIN_DIST = 34; // px
+  markerRefs.forEach(r=>{
+    const pt = leafletMap.latLngToContainerPoint(r.marker.getLatLng());
+    const collide = shown.some(p => Math.abs(p.x-pt.x) < MIN_DIST && Math.abs(p.y-pt.y) < MIN_DIST);
+    if(collide){
+      r.marker.closeTooltip();
+    }else{
+      r.marker.openTooltip();
+      shown.push(pt);
+    }
+  });
+}
+
 function renderMap(){
   initLeaflet();
   const ids = getFilteredIds();
   const activeSet = new Set(ids);
   markerLayer.clearLayers();
+  markerRefs = [];
   renderControlPoints();
 
   const boundsPts = [];
@@ -1120,15 +1160,19 @@ function renderMap(){
     const isSel = id===selectedId;
     const color = STATUS_HEX[m.status] || STATUS_HEX['미착수'];
     const marker = L.marker(ll, { icon: manholeIcon(color, isSel, isActive) }).addTo(markerLayer);
-    marker.bindTooltip(m.id, {direction:'top', offset:[0,-14], opacity:0.9});
+    marker.bindTooltip(m.id, {permanent:true, direction:'top', offset:[0,-14], opacity:0.9, className:'mh-label'});
     marker.on('click', ()=>{ selectManhole(id); });
+    markerRefs.push({id, marker});
   });
 
   if(boundsPts.length && !hasFitBounds){
     leafletMap.fitBounds(L.latLngBounds(boundsPts), {padding:[50,50]});
     hasFitBounds = true;
   }
-  setTimeout(()=>{ if(leafletMap) leafletMap.invalidateSize(); }, 60);
+  setTimeout(()=>{
+    if(leafletMap) leafletMap.invalidateSize();
+    updateLabelVisibility();
+  }, 60);
 }
 
 function renderTable(){
@@ -1246,11 +1290,15 @@ function renderDetailContent(panel){
       <textarea id="f-note" placeholder="특이사항 입력">${m.note||''}</textarea>
     </div>
 
-    <button id="detailBottomClose" style="width:100%;margin-top:6px;background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);border-radius:7px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;">닫기</button>
+    <div style="display:flex;gap:8px;margin-top:6px;">
+      <button id="detailBottomClose" style="flex:1;background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);border-radius:7px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;">닫기</button>
+      <button id="detailDeleteBtn" style="flex:1;background:rgba(211,47,47,0.1);border:1px solid var(--st-bad);color:var(--st-bad);border-radius:7px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;">삭제</button>
+    </div>
   `;
 
   document.getElementById('detailCloseBtn').addEventListener('click', deselectManhole);
   document.getElementById('detailBottomClose').addEventListener('click', deselectManhole);
+  document.getElementById('detailDeleteBtn').addEventListener('click', ()=>deleteManhole(selectedId));
   document.getElementById('moveLocationBtn').addEventListener('click', ()=>startMoveMode(selectedId));
 
   const bind = (elId, prop, evt='change') => {
