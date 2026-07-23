@@ -57,7 +57,7 @@ header{padding:14px 20px;border-bottom:1px solid var(--border);background:linear
 .progress-label{font-family:var(--mono);font-size:11px;color:rgba(255,255,255,0.85);}
 
 /* layout */
-.main{display:grid;grid-template-columns:1fr 0px;flex:1;min-height:0;transition:grid-template-columns .18s ease;}
+.main{display:grid;grid-template-columns:1fr;flex:1;min-height:0;}
 
 /* 관리자/검색/현황 팝업 모달 */
 .menu-modal-backdrop{display:none;position:fixed;inset:0;background:rgba(15,20,26,0.35);z-index:900;}
@@ -72,6 +72,22 @@ header{padding:14px 20px;border-bottom:1px solid var(--border);background:linear
 @media (max-width:860px){
   .menu-modal{left:10px;right:10px;width:auto;top:auto;bottom:64px;max-height:70vh;border-radius:14px;}
 }
+
+/* 속성 상세정보 팝업 (지도 위 오른쪽, 화면의 2/3 크기) */
+.detail-backdrop{display:none;position:fixed;inset:0;background:rgba(15,20,26,0.35);z-index:920;}
+.detail-backdrop.open{display:block;}
+.detail-modal{display:none;position:fixed;top:78px;right:20px;width:320px;max-height:66vh;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 16px 40px rgba(15,20,26,0.28);z-index:921;overflow:hidden;}
+.detail-modal.open{display:flex;flex-direction:column;}
+.detail-modal .detail-panel{flex:1;min-height:0;}
+@media (max-width:860px){
+  .detail-modal{left:10px;right:10px;width:auto;top:auto;bottom:64px;max-height:66vh;border-radius:14px;}
+}
+
+/* 새 맨홀 추가 팝업 */
+.add-backdrop{display:none;position:fixed;inset:0;background:rgba(15,20,26,0.35);z-index:930;}
+.add-backdrop.open{display:block;}
+.add-modal{display:none;flex-direction:column;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:300px;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 16px 40px rgba(15,20,26,0.3);z-index:931;overflow:hidden;}
+.add-modal.open{display:flex;}
 .panel{border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0;background:var(--panel);overflow:hidden;}
 .main > .panel:last-child{border-right:none;border-left:1px solid var(--border);}
 
@@ -171,9 +187,6 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
   .progress-label{font-size:9.5px;}
 
   .main{grid-template-columns:1fr;}
-  .panel{display:none !important;border-right:none;border-left:none;}
-  .panel.mobile-active{display:flex !important;}
-  .main > .panel:last-child{border-left:none;}
 
   .mobile-tabbar{display:flex;flex-shrink:0;background:var(--panel);border-top:1px solid var(--border);position:relative;z-index:950;}
   .mobile-tabbar button{flex:1;background:transparent;border:none;font-family:var(--sans);font-size:11px;color:var(--text-dim);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));cursor:pointer;}
@@ -323,22 +336,38 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
       <span>▲ 기준점</span>
     </div>
   </div>
+</div>
 
-  <div class="panel detail-panel-wrap">
-    <div class="detail-panel" id="detailPanel"></div>
+<div class="detail-backdrop" id="detailBackdrop"></div>
+<div class="detail-modal" id="detailModal">
+  <div class="detail-panel" id="detailPanel"></div>
+</div>
+
+<div class="add-backdrop" id="addBackdrop"></div>
+<div class="add-modal" id="addModal">
+  <div class="menu-modal-header">
+    <div class="menu-modal-title">새 맨홀 추가</div>
+    <button class="menu-modal-close" id="addModalClose">✕</button>
+  </div>
+  <div style="padding:16px;">
+    <div class="field">
+      <label>맨홀번호</label>
+      <input type="text" id="newManholeId" placeholder="예: 15-3" style="width:100%;background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:9px 10px;border-radius:6px;font-size:13px;font-family:var(--mono);">
+    </div>
+    <div class="mode-hint">번호를 입력하고 아래 버튼을 누른 뒤, 지도를 눌러 위치를 지정하세요.</div>
+    <button id="addManholeNextBtn" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:7px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;">지도에서 위치 선택 →</button>
   </div>
 </div>
 
 <div class="mobile-tabbar">
   <button class="tab-list" data-tab="list"><span class="ic">📋</span>목록</button>
   <button class="tab-map active" data-tab="map"><span class="ic">🗺️</span>지도</button>
-  <button class="tab-detail" data-tab="detail"><span class="ic">📝</span>상세</button>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v2.4 · 2026-07-23';
+const APP_VERSION = 'v2.5 · 2026-07-23';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 /* 여러 사람이 실시간으로 데이터를 공유하려면 아래에 Firebase Realtime Database 주소를 넣으세요.
    예: 'https://landsurvey2026-xxxxx-default-rtdb.asia-southeast1.firebasedatabase.app'
@@ -352,28 +381,34 @@ const STATUS_HEX = {'미착수':'#FF5252','진행중':'#FFC400','완료':'#00C85
 let state = { order: [], manholes: {}, controlPoints: [], inspectors: [] };
 let selectedId = null;
 let mobileTab = 'map';
-function updateMainLayout(){
-  const mainEl = document.querySelector('.main');
-  if(!mainEl) return;
-  if(window.innerWidth <= 860){ mainEl.style.gridTemplateColumns = ''; return; }
-  mainEl.style.gridTemplateColumns = selectedId ? '1fr 300px' : '1fr 0px';
-  setTimeout(()=>{ if(leafletMap) leafletMap.invalidateSize(); }, 220);
+
+function openDetailModal(){
+  document.getElementById('detailModal').classList.add('open');
+  document.getElementById('detailBackdrop').classList.add('open');
+}
+function closeDetailModal(){
+  document.getElementById('detailModal').classList.remove('open');
+  document.getElementById('detailBackdrop').classList.remove('open');
 }
 function selectManhole(id){
   selectedId = id;
   closeMenuModal();
   renderAll();
-  if(window.innerWidth <= 860) setMobileTab('detail');
+  openDetailModal();
 }
+function deselectManhole(){
+  selectedId = null;
+  closeDetailModal();
+  renderAll();
+}
+document.getElementById('detailBackdrop').addEventListener('click', closeDetailModal);
+
 function setMobileTab(tab){
-  if(tab==='list'){ showMenu(activeMenu || 'status'); return; }
   mobileTab = tab;
-  const centerPanel = document.querySelector('.center-panel');
-  const detailPanel = document.querySelector('.detail-panel-wrap');
-  if(centerPanel) centerPanel.classList.toggle('mobile-active', tab==='map');
-  if(detailPanel) detailPanel.classList.toggle('mobile-active', tab==='detail');
+  if(tab==='list'){ showMenu(activeMenu || 'status'); return; }
+  if(tab==='map'){ closeMenuModal(); closeDetailModal(); }
   document.querySelectorAll('.mobile-tabbar button').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
-  if(tab==='map' && leafletMap) setTimeout(()=>leafletMap.invalidateSize(), 80);
+  if(leafletMap) setTimeout(()=>leafletMap.invalidateSize(), 80);
 }
 document.querySelectorAll('.mobile-tabbar button').forEach(b=>{
   b.addEventListener('click', ()=>setMobileTab(b.dataset.tab));
@@ -857,6 +892,92 @@ function toLatLng(x,y){
     return [lat,lon];
   }catch(e){ return null; }
 }
+function fromLatLng(lat,lon){
+  try{
+    const [easting, northing] = proj4('WGS84','EPSG:5186',[lon,lat]);
+    if(!isFinite(easting) || !isFinite(northing)) return null;
+    return { x: Math.round(northing*100)/100, y: Math.round(easting*100)/100 }; // x=남북(종거), y=동서(횡거)
+  }catch(e){ return null; }
+}
+
+/* ---------- 맨홀 위치 이동 / 새 맨홀 추가 (지도 클릭으로 좌표 지정) ---------- */
+let moveModeId = null;
+let addModeId = null;
+function startMoveMode(id){
+  moveModeId = id;
+  closeDetailModal();
+  showToast('지도를 눌러 새 위치를 선택하세요');
+}
+function handleMapPlacementClick(latlng){
+  const coords = fromLatLng(latlng.lat, latlng.lng);
+  if(!coords){ showToast('좌표 변환 실패'); return; }
+  if(moveModeId){
+    const id = moveModeId;
+    moveModeId = null;
+    if(state.manholes[id]){
+      state.manholes[id].x = coords.x;
+      state.manholes[id].y = coords.y;
+      saveState();
+      renderAll();
+      selectManhole(id);
+      showToast('위치가 이동되었습니다');
+    }
+    return true;
+  }
+  if(addModeId){
+    const id = addModeId;
+    addModeId = null;
+    if(state.manholes[id]){
+      showToast('이미 존재하는 맨홀번호라 위치만 갱신했습니다');
+      state.manholes[id].x = coords.x;
+      state.manholes[id].y = coords.y;
+    }else{
+      state.manholes[id] = blankRecord(id, coords.x, coords.y, 0);
+      state.order.push(id);
+    }
+    saveState();
+    renderAll();
+    selectManhole(id);
+    showToast(`'${id}' 맨홀이 추가되었습니다`);
+    return true;
+  }
+  return false;
+}
+const AddManholeControl = L.Control.extend({
+  options:{ position:'topright' },
+  onAdd: function(map){
+    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+    const btn = L.DomUtil.create('a', 'locate-btn', container);
+    btn.href = '#';
+    btn.title = '새 맨홀 추가';
+    btn.innerHTML = '➕';
+    L.DomEvent.disableClickPropagation(container);
+    L.DomEvent.on(btn, 'click', function(e){
+      L.DomEvent.preventDefault(e);
+      openAddModal();
+    });
+    return container;
+  }
+});
+function openAddModal(){
+  document.getElementById('newManholeId').value = '';
+  document.getElementById('addModal').classList.add('open');
+  document.getElementById('addBackdrop').classList.add('open');
+  setTimeout(()=>document.getElementById('newManholeId').focus(), 80);
+}
+function closeAddModal(){
+  document.getElementById('addModal').classList.remove('open');
+  document.getElementById('addBackdrop').classList.remove('open');
+}
+document.getElementById('addModalClose').addEventListener('click', closeAddModal);
+document.getElementById('addBackdrop').addEventListener('click', closeAddModal);
+document.getElementById('addManholeNextBtn').addEventListener('click', ()=>{
+  const id = document.getElementById('newManholeId').value.trim();
+  if(!id){ showToast('맨홀번호를 입력해주세요'); return; }
+  addModeId = id;
+  closeAddModal();
+  showToast('지도를 눌러 맨홀 위치를 지정하세요');
+});
 
 let leafletMap = null, markerLayer = null, cpLayer = null, hasFitBounds = false;
 let baseLayers = {}, currentBase = 'map';
@@ -891,7 +1012,12 @@ function initLeaflet(){
   }).setView([37.5665,126.9780], 12);
   L.control.zoom({position:'topright'}).addTo(leafletMap);
   leafletMap.addControl(new LocateControl());
+  leafletMap.addControl(new AddManholeControl());
   L.control.attribution({prefix:false, position:'bottomright'}).addAttribution('Seo Young Min').addTo(leafletMap);
+
+  leafletMap.on('click', (e)=>{
+    if(moveModeId || addModeId){ handleMapPlacementClick(e.latlng); }
+  });
 
   leafletMap.on('locationfound', (e)=>{
     document.querySelectorAll('.locate-btn').forEach(b=>b.innerHTML='📍');
@@ -1038,14 +1164,9 @@ function renderCenter(){
 
 /* ---------- render: detail panel ---------- */
 function renderDetail(){
-  updateMainLayout();
   const panel = document.getElementById('detailPanel');
   if(!selectedId || !state.manholes[selectedId]){
-    if(window.innerWidth <= 860 && mobileTab==='detail'){
-      panel.innerHTML = `<div class="detail-empty"><span class="ic">🗺️</span>선택된 맨홀이 없습니다.<br>지도나 목록에서 맨홀을 먼저 선택해주세요.</div>`;
-    }else{
-      panel.innerHTML = '';
-    }
+    panel.innerHTML = '';
     return;
   }
   try{
@@ -1075,6 +1196,8 @@ function renderDetailContent(panel){
       </div>
       <button class="detail-close-btn" id="detailCloseBtn" title="닫기">✕</button>
     </div>
+
+    <button id="moveLocationBtn" style="width:100%;margin-bottom:14px;background:var(--panel-2);border:1px dashed var(--border);color:var(--text);border-radius:7px;padding:9px;font-size:12.5px;font-weight:600;cursor:pointer;">📍 위치 이동</button>
 
     <div class="field">
       <label>진행상태</label>
@@ -1122,13 +1245,13 @@ function renderDetailContent(panel){
       <label>비고</label>
       <textarea id="f-note" placeholder="특이사항 입력">${m.note||''}</textarea>
     </div>
+
+    <button id="detailBottomClose" style="width:100%;margin-top:6px;background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);border-radius:7px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;">닫기</button>
   `;
 
-  document.getElementById('detailCloseBtn').addEventListener('click', ()=>{
-    selectedId = null;
-    renderAll();
-    if(window.innerWidth <= 860) setMobileTab('map');
-  });
+  document.getElementById('detailCloseBtn').addEventListener('click', deselectManhole);
+  document.getElementById('detailBottomClose').addEventListener('click', deselectManhole);
+  document.getElementById('moveLocationBtn').addEventListener('click', ()=>startMoveMode(selectedId));
 
   const bind = (elId, prop, evt='change') => {
     const el = document.getElementById(elId);
@@ -1201,7 +1324,7 @@ setInterval(async ()=>{
   }
 }, 8000);
 
-window.addEventListener('resize', ()=>{ renderCenter(); updateMainLayout(); });
+window.addEventListener('resize', ()=>{ renderCenter(); });
 
 (async function init(){
   const vBadge = document.getElementById('versionBadge');
