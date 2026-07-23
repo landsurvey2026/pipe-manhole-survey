@@ -338,7 +338,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v2.2 · 2026-07-23';
+const APP_VERSION = 'v2.4 · 2026-07-23';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 /* 여러 사람이 실시간으로 데이터를 공유하려면 아래에 Firebase Realtime Database 주소를 넣으세요.
    예: 'https://landsurvey2026-xxxxx-default-rtdb.asia-southeast1.firebasedatabase.app'
@@ -1041,17 +1041,30 @@ function renderDetail(){
   updateMainLayout();
   const panel = document.getElementById('detailPanel');
   if(!selectedId || !state.manholes[selectedId]){
-    panel.innerHTML = '';
+    if(window.innerWidth <= 860 && mobileTab==='detail'){
+      panel.innerHTML = `<div class="detail-empty"><span class="ic">🗺️</span>선택된 맨홀이 없습니다.<br>지도나 목록에서 맨홀을 먼저 선택해주세요.</div>`;
+    }else{
+      panel.innerHTML = '';
+    }
     return;
   }
+  try{
+    renderDetailContent(panel);
+  }catch(err){
+    console.error('renderDetail error:', err);
+    panel.innerHTML = `<div class="detail-empty"><span class="ic">⚠️</span>화면 표시 중 오류가 발생했습니다.<br><span style="font-family:var(--mono);font-size:10.5px;">${(err&&err.message)||err}</span><br><br>이 메시지를 캡처해서 알려주세요.</div>`;
+  }
+}
+function renderDetailContent(panel){
   const m = state.manholes[selectedId];
   const presenceOptions = (val)=>['없음','있음'].map(v=>`<option value="${v}" ${val===v?'selected':''}>${v}</option>`).join('');
   const inspectorOptions = ()=>{
+    const list = state.inspectors || [];
     let opts = `<option value="">선택 안함</option>`;
-    if(m.inspector && !state.inspectors.includes(m.inspector)){
+    if(m.inspector && !list.includes(m.inspector)){
       opts += `<option value="${m.inspector}" selected>${m.inspector} (목록에 없음)</option>`;
     }
-    opts += state.inspectors.map(name=>`<option value="${name}" ${m.inspector===name?'selected':''}>${name}</option>`).join('');
+    opts += list.map(name=>`<option value="${name}" ${m.inspector===name?'selected':''}>${name}</option>`).join('');
     return opts;
   };
   panel.innerHTML = `
@@ -1147,6 +1160,13 @@ function renderAll(){
   renderInspectorList();
 }
 
+function ensureStateDefaults(){
+  if(!state.controlPoints) state.controlPoints = [];
+  if(!state.inspectors) state.inspectors = [];
+  if(!state.order) state.order = [];
+  if(!state.manholes) state.manholes = {};
+}
+
 /* ---------- 다른 사람/다른 기기와 실시간에 가깝게 동기화 ---------- */
 setInterval(async ()=>{
   const active = document.activeElement;
@@ -1160,6 +1180,7 @@ setInterval(async ()=>{
       const remote = await res.json();
       if(remote && JSON.stringify(remote) !== JSON.stringify(state)){
         state = remote;
+        ensureStateDefaults();
         try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
         renderAll();
       }
@@ -1172,6 +1193,7 @@ setInterval(async ()=>{
         const remote = JSON.parse(raw);
         if(JSON.stringify(remote) !== JSON.stringify(state)){
           state = remote;
+          ensureStateDefaults();
           renderAll();
         }
       }
