@@ -143,6 +143,7 @@ header{padding:14px 20px;border-bottom:1px solid var(--border);background:linear
 .mh-label{background:rgba(255,255,255,0.92);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--text);box-shadow:none;}
 .mh-label::before{border-top-color:rgba(255,255,255,0.92) !important;}
 .locate-btn{display:flex;align-items:center;justify-content:center;width:30px;height:30px;background:#fff;font-size:16px;text-decoration:none;cursor:pointer;}
+.locate-btn-active{background:var(--accent) !important;color:#fff;filter:brightness(1.1);}
 .locate-btn:hover{background:#f4f4f4;}
 .legend span{display:inline-flex;align-items:center;gap:5px;}
 .legend .dot{width:8px;height:8px;}
@@ -370,7 +371,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v2.6 · 2026-07-23';
+const APP_VERSION = 'v2.7 · 2026-07-23';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 /* 여러 사람이 실시간으로 데이터를 공유하려면 아래에 Firebase Realtime Database 주소를 넣으세요.
    예: 'https://landsurvey2026-xxxxx-default-rtdb.asia-southeast1.firebasedatabase.app'
@@ -973,6 +974,33 @@ const AddManholeControl = L.Control.extend({
     return container;
   }
 });
+let selectingForMove = false;
+const MoveManholeControl = L.Control.extend({
+  options:{ position:'topright' },
+  onAdd: function(map){
+    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+    const btn = L.DomUtil.create('a', 'locate-btn', container);
+    btn.href = '#';
+    btn.title = '맨홀 이동';
+    btn.innerHTML = '⇄';
+    L.DomEvent.disableClickPropagation(container);
+    L.DomEvent.on(btn, 'click', function(e){
+      L.DomEvent.preventDefault(e);
+      if(selectingForMove){
+        selectingForMove = false;
+        btn.classList.remove('locate-btn-active');
+        showToast('이동 선택이 취소되었습니다');
+      }else{
+        selectingForMove = true;
+        btn.classList.add('locate-btn-active');
+        closeDetailModal();
+        closeMenuModal();
+        showToast('이동할 맨홀을 지도에서 선택하세요');
+      }
+    });
+    return container;
+  }
+});
 function openAddModal(){
   document.getElementById('newManholeId').value = '';
   document.getElementById('addModal').classList.add('open');
@@ -1028,6 +1056,7 @@ function initLeaflet(){
   L.control.zoom({position:cornerPos}).addTo(leafletMap);
   leafletMap.addControl(new LocateControl({position:cornerPos}));
   leafletMap.addControl(new AddManholeControl({position:cornerPos}));
+  leafletMap.addControl(new MoveManholeControl({position:cornerPos}));
   L.control.attribution({prefix:false, position:'bottomright'}).addAttribution('Seo Young Min').addTo(leafletMap);
 
   leafletMap.on('click', (e)=>{
@@ -1161,7 +1190,15 @@ function renderMap(){
     const color = STATUS_HEX[m.status] || STATUS_HEX['미착수'];
     const marker = L.marker(ll, { icon: manholeIcon(color, isSel, isActive) }).addTo(markerLayer);
     marker.bindTooltip(m.id, {permanent:true, direction:'top', offset:[0,-14], opacity:0.9, className:'mh-label'});
-    marker.on('click', ()=>{ selectManhole(id); });
+    marker.on('click', ()=>{
+      if(selectingForMove){
+        selectingForMove = false;
+        document.querySelectorAll('.locate-btn-active').forEach(b=>b.classList.remove('locate-btn-active'));
+        startMoveMode(id);
+      }else{
+        selectManhole(id);
+      }
+    });
     markerRefs.push({id, marker});
   });
 
