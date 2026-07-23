@@ -139,8 +139,15 @@ header{padding:14px 20px;border-bottom:1px solid var(--border);background:linear
 .view-toggle button.active{background:var(--accent);color:#fff;font-weight:700;}
 .map-svg{width:100%;height:100%;display:block;}
 .legend{position:absolute;bottom:10px;left:12px;z-index:410;display:flex;gap:12px;background:rgba(18,26,32,0.85);padding:7px 12px;border-radius:8px;border:1px solid var(--border);font-size:10.5px;color:var(--text-dim);}
+.dayview-bar{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:415;background:rgba(11,99,206,0.95);color:#fff;padding:8px 10px 8px 16px;border-radius:20px;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:10px;box-shadow:0 4px 14px rgba(0,0,0,0.25);white-space:nowrap;}
+.dayview-bar button{background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:14px;padding:5px 13px;font-size:11.5px;cursor:pointer;font-weight:700;}
+.dayview-bar button:hover{background:rgba(255,255,255,0.32);}
+@media (max-width:860px){
+  .dayview-bar{top:8px;font-size:11px;padding:6px 8px 6px 12px;max-width:92vw;}
+}
 .leaflet-control-attribution{font-size:10px;color:var(--text-dim);background:rgba(255,255,255,0.85);}
 .mh-label{background:rgba(255,255,255,0.92);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--text);box-shadow:none;}
+.mh-label-big{font-size:21px;padding:3px 9px;border-radius:6px;border:2px solid var(--accent);background:#fff;color:var(--accent);font-weight:800;}
 .mh-label::before{border-top-color:rgba(255,255,255,0.92) !important;}
 .locate-btn{display:flex;align-items:center;justify-content:center;width:30px;height:30px;background:#fff;font-size:16px;text-decoration:none;cursor:pointer;}
 .locate-btn-active{background:var(--accent) !important;color:#fff;filter:brightness(1.1);}
@@ -174,7 +181,7 @@ tr.tbrow.selected{background:rgba(11,99,206,0.08);}
 .check-row input{width:16px;height:16px;accent-color:var(--accent);}
 .status-select{font-weight:700;}
 hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#152026;border:1px solid var(--accent);color:var(--accent);padding:9px 18px;border-radius:20px;font-size:12.5px;font-family:var(--mono);opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;z-index:100;}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#152026;border:1px solid var(--accent);color:var(--accent);padding:9px 18px;border-radius:20px;font-size:12.5px;font-family:var(--mono);opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;z-index:1000;}
 
 /* mobile tab bar */
 .mobile-tabbar{display:none;}
@@ -227,6 +234,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
     <button data-menu="admin">⚙ 관리자</button>
     <button data-menu="search">🔍 검색</button>
     <button data-menu="status" class="active">📊 현황</button>
+    <button data-menu="stats">📈 통계</button>
   </div>
   <div class="progress-wrap">
     <div class="progress-label"><span id="pct">0</span>% 완료 (<span id="doneCount2">0</span>/<span id="totalCount2">0</span>)</div>
@@ -318,6 +326,18 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
         <div id="cpList" style="padding:0 14px 14px;font-size:11.5px;font-family:var(--mono);overflow-y:auto;flex:1;"></div>
       </div>
     </div>
+
+    <div class="menu-content" id="menuStats" style="display:none;">
+      <div class="side-section">
+        <div style="font-size:12.5px;color:var(--text-dim);margin-bottom:14px;line-height:1.6;">
+          전체 <b style="color:var(--text);" id="statsTotal">0</b>개 · 완료 <b style="color:var(--st-done);" id="statsDone">0</b>개 (<span id="statsPct">0</span>%)
+        </div>
+        <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:6px;">조사일자별 경로 보기</label>
+        <select id="statsDateSelect" style="width:100%;background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:6px;font-size:12.5px;margin-bottom:10px;"></select>
+        <button id="statsShowRouteBtn" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:7px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;">이 날짜 경로 보기</button>
+      </div>
+      <div id="statsDateListWrap" style="flex:1;overflow-y:auto;padding:0 14px 14px;font-size:12px;"></div>
+    </div>
   </div>
 </div>
 
@@ -333,6 +353,10 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
     </div>
     <div id="mapHost" style="width:100%;height:100%;"></div>
     <div id="tableHost" style="width:100%;height:100%;display:none;"></div>
+    <div class="dayview-bar" id="dayViewBar" style="display:none;">
+      <span id="dayViewBarText"></span>
+      <button id="dayViewCloseBtn">닫기</button>
+    </div>
     <div class="legend">
       <span><i class="dot" style="background:var(--st-none)"></i>미착수</span>
       <span><i class="dot" style="background:var(--st-progress)"></i>진행중</span>
@@ -371,7 +395,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v2.8 · 2026-07-23';
+const APP_VERSION = 'v3.0 · 2026-07-23';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 /* 여러 사람이 실시간으로 데이터를 공유하려면 아래에 Firebase Realtime Database 주소를 넣으세요.
    예: 'https://landsurvey2026-xxxxx-default-rtdb.asia-southeast1.firebasedatabase.app'
@@ -470,7 +494,7 @@ listWrapEl.id = 'listWrap';
 document.getElementById('statusListSlot').appendChild(listWrapEl);
 
 let activeMenu = null;
-const MENU_TITLES = {admin:'⚙ 관리자', search:'🔍 검색', status:'📊 현황'};
+const MENU_TITLES = {admin:'⚙ 관리자', search:'🔍 검색', status:'📊 현황', stats:'📈 통계'};
 
 function openMenuModal(){
   document.getElementById('menuModal').classList.add('open');
@@ -492,6 +516,7 @@ function showMenu(name){
   document.getElementById('menuAdmin').style.display = name==='admin' ? 'flex' : 'none';
   document.getElementById('menuSearch').style.display = name==='search' ? 'flex' : 'none';
   document.getElementById('menuStatus').style.display = name==='status' ? 'flex' : 'none';
+  document.getElementById('menuStats').style.display = name==='stats' ? 'flex' : 'none';
 
   if(name==='search'){
     document.getElementById('searchListSlot').appendChild(listWrapEl);
@@ -502,6 +527,7 @@ function showMenu(name){
       document.getElementById('statusListSlot').appendChild(listWrapEl);
     }
   }
+  if(name==='stats') renderStatsModal();
   renderAll();
 }
 document.querySelectorAll('.top-toolbar button').forEach(b=>{
@@ -627,15 +653,18 @@ function showToast(msg, actionLabel, actionFn){
     btn.addEventListener('click', ()=>{
       actionFn();
       t.classList.remove('show');
+      t.style.pointerEvents = 'none';
     });
     t.appendChild(span);
     t.appendChild(btn);
+    t.style.pointerEvents = 'auto';
   }else{
     t.textContent = msg;
+    t.style.pointerEvents = 'none';
   }
   t.classList.add('show');
   clearTimeout(t._timer);
-  t._timer = setTimeout(()=>t.classList.remove('show'), actionLabel ? 5500 : 1800);
+  t._timer = setTimeout(()=>{ t.classList.remove('show'); t.style.pointerEvents = 'none'; }, actionLabel ? 5500 : 1800);
 }
 
 /* ---------- 기준점(Control Point) 업로드 — X,Y,Z 모두 사용 ---------- */
@@ -752,6 +781,55 @@ document.getElementById('inspectorAddBtn').addEventListener('click', addInspecto
 document.getElementById('inspectorNameInput').addEventListener('keydown', (e)=>{
   if(e.key==='Enter'){ e.preventDefault(); addInspectorFromInput(); }
 });
+
+/* ---------- 통계 / 날짜별 경로 보기 ---------- */
+function renderStatsModal(){
+  const all = state.order.map(id=>state.manholes[id]).filter(Boolean);
+  const total = all.length;
+  const done = all.filter(m=>m.status==='완료').length;
+  document.getElementById('statsTotal').textContent = total;
+  document.getElementById('statsDone').textContent = done;
+  document.getElementById('statsPct').textContent = total ? Math.round(done/total*100) : 0;
+
+  const dates = [...new Set(all.map(m=>m.date).filter(Boolean))].sort();
+  const sel = document.getElementById('statsDateSelect');
+  const prevVal = sel.value;
+  sel.innerHTML = dates.length
+    ? dates.map(d=>`<option value="${d}">${d}</option>`).join('')
+    : '<option value="">조사일자가 입력된 맨홀이 없습니다</option>';
+  if(dates.includes(prevVal)) sel.value = prevVal;
+  renderStatsDateList();
+}
+function renderStatsDateList(){
+  const sel = document.getElementById('statsDateSelect');
+  const wrap = document.getElementById('statsDateListWrap');
+  if(!sel.value){ wrap.innerHTML = '<div class="empty-note">날짜를 선택하세요</div>'; return; }
+  const ids = state.order.filter(id=>state.manholes[id] && state.manholes[id].date===sel.value);
+  if(!ids.length){ wrap.innerHTML = '<div class="empty-note">해당 날짜 데이터가 없습니다</div>'; return; }
+  wrap.innerHTML = ids.map((id,i)=>`<div class="mh-row" style="cursor:default;"><span class="id">${i+1}. ${id}</span></div>`).join('');
+}
+document.getElementById('statsDateSelect').addEventListener('change', renderStatsDateList);
+document.getElementById('statsShowRouteBtn').addEventListener('click', ()=>{
+  const sel = document.getElementById('statsDateSelect');
+  if(!sel.value){ showToast('날짜를 선택해주세요'); return; }
+  startDayView(sel.value);
+});
+
+let dayViewDate = null;
+function startDayView(date){
+  dayViewDate = date;
+  const ids = state.order.filter(id=>state.manholes[id] && state.manholes[id].date===date);
+  closeMenuModal();
+  document.getElementById('dayViewBarText').textContent = `📅 ${date} 경로 · ${ids.length}개`;
+  document.getElementById('dayViewBar').style.display = 'flex';
+  renderMap();
+}
+function closeDayView(){
+  dayViewDate = null;
+  document.getElementById('dayViewBar').style.display = 'none';
+  renderMap();
+}
+document.getElementById('dayViewCloseBtn').addEventListener('click', closeDayView);
 
 
 /* ---------- Excel parsing ---------- */
@@ -970,7 +1048,6 @@ function handleMapPlacementClick(latlng){
       lastMoveUndo = {id, prevX, prevY};
       saveState();
       renderAll();
-      selectManhole(id);
       showToast('위치가 이동되었습니다', '되돌리기', undoLastMove);
     }
     return true;
@@ -1057,7 +1134,7 @@ document.getElementById('addManholeNextBtn').addEventListener('click', ()=>{
   showToast('지도를 눌러 맨홀 위치를 지정하세요');
 });
 
-let leafletMap = null, markerLayer = null, cpLayer = null, hasFitBounds = false;
+let leafletMap = null, markerLayer = null, cpLayer = null, dayViewLayerGroup = null, hasFitBounds = false;
 let baseLayers = {}, currentBase = 'map';
 let meMarker = null, meCircle = null;
 const LocateControl = L.Control.extend({
@@ -1122,6 +1199,7 @@ function initLeaflet(){
   baseLayers.map.addTo(leafletMap);
   markerLayer = L.layerGroup().addTo(leafletMap);
   cpLayer = L.layerGroup().addTo(leafletMap);
+  dayViewLayerGroup = L.layerGroup().addTo(leafletMap);
 }
 
 function setBasemap(key){
@@ -1155,8 +1233,9 @@ function renderControlPoints(){
 }
 
 /* 실제 하수 맨홀뚜껑 모양의 마커 아이콘 (원형 테두리 + 방사형 패턴) */
-function manholeIcon(color, isSel, isActive){
-  const size = isSel ? 32 : 25;
+function manholeIcon(color, isSel, isActive, big){
+  let size = isSel ? 32 : 25;
+  if(big) size = size * 2;
   const op = isActive ? 1 : 0.3;
   const ring = isSel ? '#0B63CE' : '#24272A';
   const ringW = isSel ? 2.6 : 1.4;
@@ -1187,13 +1266,21 @@ let markerRefs = [];
 function updateLabelVisibility(){
   if(!leafletMap) return;
   const zoom = leafletMap.getZoom();
-  if(zoom < LABEL_MIN_ZOOM){
-    markerRefs.forEach(r=>r.marker.closeTooltip());
-    return;
-  }
   const shown = [];
   const MIN_DIST = 34; // px
-  markerRefs.forEach(r=>{
+
+  // 날짜별 경로 보기 중인 맨홀은 줌 레벨과 상관없이 항상 라벨을 보여줌
+  markerRefs.filter(r=>r.isDayMember).forEach(r=>{
+    r.marker.openTooltip();
+    shown.push(leafletMap.latLngToContainerPoint(r.marker.getLatLng()));
+  });
+
+  const rest = markerRefs.filter(r=>!r.isDayMember);
+  if(zoom < LABEL_MIN_ZOOM){
+    rest.forEach(r=>r.marker.closeTooltip());
+    return;
+  }
+  rest.forEach(r=>{
     const pt = leafletMap.latLngToContainerPoint(r.marker.getLatLng());
     const collide = shown.some(p => Math.abs(p.x-pt.x) < MIN_DIST && Math.abs(p.y-pt.y) < MIN_DIST);
     if(collide){
@@ -1211,9 +1298,18 @@ function renderMap(){
   const activeSet = new Set(ids);
   markerLayer.clearLayers();
   markerRefs = [];
+  dayViewLayerGroup.clearLayers();
   renderControlPoints();
 
   const boundsPts = [];
+  let dayIds = [];
+  if(dayViewDate){
+    dayIds = state.order.filter(id=>state.manholes[id] && state.manholes[id].date===dayViewDate);
+    const linePts = dayIds.map(id=>toLatLng(state.manholes[id].x, state.manholes[id].y)).filter(Boolean);
+    if(linePts.length>1){
+      L.polyline(linePts, {color:'#0B63CE', weight:4, opacity:0.85, dashArray:'8 8'}).addTo(dayViewLayerGroup);
+    }
+  }
 
   state.order.forEach(id=>{
     const m = state.manholes[id];
@@ -1224,8 +1320,15 @@ function renderMap(){
     const isActive = activeSet.has(id);
     const isSel = id===selectedId;
     const color = STATUS_HEX[m.status] || STATUS_HEX['미착수'];
-    const marker = L.marker(ll, { icon: manholeIcon(color, isSel, isActive) }).addTo(markerLayer);
-    marker.bindTooltip(m.id, {permanent:true, direction:'top', offset:[0,-14], opacity:0.9, className:'mh-label'});
+    const dayIdx = dayViewDate ? dayIds.indexOf(id) : -1;
+    const isDayMember = dayIdx !== -1;
+    const dimForDayView = dayViewDate && !isDayMember;
+    const marker = L.marker(ll, { icon: manholeIcon(color, isSel, dimForDayView ? false : isActive, isDayMember) }).addTo(markerLayer);
+    if(isDayMember){
+      marker.bindTooltip(`${dayIdx+1}. ${m.id}`, {permanent:true, direction:'top', offset:[0,-26], opacity:0.95, className:'mh-label mh-label-big'});
+    }else{
+      marker.bindTooltip(m.id, {permanent:true, direction:'top', offset:[0,-14], opacity:0.9, className:'mh-label'});
+    }
     marker.on('click', ()=>{
       if(selectingForMove){
         selectingForMove = false;
@@ -1236,7 +1339,7 @@ function renderMap(){
     marker.on('dblclick', ()=>{
       if(!selectingForMove) selectManhole(id);
     });
-    markerRefs.push({id, marker});
+    markerRefs.push({id, marker, isDayMember});
   });
 
   if(boundsPts.length && !hasFitBounds){
