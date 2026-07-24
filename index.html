@@ -35,26 +35,26 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:
 body{display:flex;flex-direction:column;min-height:100vh;}
 
 /* header */
-header{padding:14px 20px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#0B63CE,#0A4FA3);display:flex;align-items:center;gap:18px;flex-wrap:wrap;box-shadow:0 2px 10px rgba(11,99,206,0.18);}
-.brand{display:flex;flex-direction:column;gap:2px;}
-.brand .title{font-weight:700;font-size:16px;letter-spacing:0.2px;color:#fff;}
+header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:linear-gradient(160deg,#0E6EE0 0%,#0A4FA3 55%,#073B7D 100%);display:flex;align-items:center;gap:18px;flex-wrap:wrap;box-shadow:0 4px 18px rgba(6,40,90,0.35), inset 0 1px 0 rgba(255,255,255,0.12);position:relative;}
+.brand{display:flex;flex-direction:column;gap:3px;}
+.brand .title{font-weight:800;font-size:17px;letter-spacing:0.1px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.2);}
 .sync-badge{font-size:10px;vertical-align:middle;cursor:default;}
 .sync-badge[data-mode="shared"]{color:#4ADE80;}
 .sync-badge[data-mode="local"]{color:#FFD48A;}
 .sync-badge[data-mode="error"]{color:#FF6B6B;}
 .version-badge{font-size:10px;font-family:var(--mono);color:rgba(255,255,255,0.65);font-weight:500;vertical-align:middle;}
-.brand .sub{font-size:10.5px;color:rgba(255,255,255,0.75);font-family:var(--mono);letter-spacing:0.4px;}
+.brand .sub{font-size:10.5px;color:rgba(255,255,255,0.7);font-family:var(--mono);letter-spacing:0.5px;}
 .dash{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap;}
-.dash-card{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:8px;padding:8px 14px;min-width:78px;text-align:center;}
-.dash-card .n{font-family:var(--mono);font-size:20px;font-weight:700;line-height:1.1;color:#fff;}
-.dash-card .l{font-size:10px;color:rgba(255,255,255,0.75);margin-top:2px;}
+.dash-card{background:linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.06));border:1px solid rgba(255,255,255,0.22);border-radius:10px;padding:9px 16px;min-width:80px;text-align:center;box-shadow:0 3px 10px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.15);}
+.dash-card .n{font-family:var(--mono);font-size:21px;font-weight:800;line-height:1.1;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.25);}
+.dash-card .l{font-size:10px;color:rgba(255,255,255,0.75);margin-top:3px;font-weight:600;letter-spacing:0.3px;}
 .dash-card.done .n{color:#B9F3D6;}
 .dash-card.prog .n{color:#FFD48A;}
 .dash-card.none .n{color:rgba(255,255,255,0.75);}
 .progress-wrap{width:180px;display:flex;flex-direction:column;gap:4px;justify-content:center;}
-.progress-bar{height:8px;border-radius:4px;background:rgba(255,255,255,0.25);overflow:hidden;border:1px solid rgba(255,255,255,0.3);}
-.progress-fill{height:100%;background:linear-gradient(90deg,#7FD4FF,#B9F3D6);transition:width .4s ease;}
-.progress-label{font-family:var(--mono);font-size:11px;color:rgba(255,255,255,0.85);}
+.progress-bar{height:9px;border-radius:5px;background:rgba(0,0,0,0.2);overflow:hidden;border:1px solid rgba(255,255,255,0.25);box-shadow:inset 0 1px 3px rgba(0,0,0,0.3);}
+.progress-fill{height:100%;background:linear-gradient(90deg,#7FD4FF,#B9F3D6);transition:width .4s ease;box-shadow:0 0 8px rgba(127,212,255,0.6);}
+.progress-label{font-family:var(--mono);font-size:11px;color:rgba(255,255,255,0.85);font-weight:600;}
 
 /* layout */
 .main{display:grid;grid-template-columns:1fr;flex:1;min-height:0;}
@@ -62,7 +62,7 @@ header{padding:14px 20px;border-bottom:1px solid var(--border);background:linear
 /* 관리자/검색/현황 팝업 모달 */
 .menu-modal-backdrop{display:none;position:fixed;inset:0;background:rgba(15,20,26,0.35);z-index:900;}
 .menu-modal-backdrop.open{display:block;}
-.menu-modal{display:none;flex-direction:column;position:fixed;top:78px;left:20px;width:320px;max-height:calc(100vh - 110px);background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 16px 40px rgba(15,20,26,0.28);z-index:901;overflow:hidden;}
+.menu-modal{display:none;flex-direction:column;position:fixed;top:78px;left:20px;width:320px;max-height:calc(100vh - 110px);background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(10,15,25,0.35), 0 2px 8px rgba(10,15,25,0.15);z-index:901;overflow:hidden;border-top:3px solid var(--accent);}
 .menu-modal.open{display:flex;}
 .menu-modal-header{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
 .menu-modal-title{font-weight:700;font-size:13.5px;color:var(--text);}
@@ -76,7 +76,7 @@ header{padding:14px 20px;border-bottom:1px solid var(--border);background:linear
 /* 속성 상세정보 팝업 (지도 위 오른쪽, 화면의 2/3 크기) */
 .detail-backdrop{display:none;position:fixed;inset:0;background:rgba(15,20,26,0.35);z-index:920;}
 .detail-backdrop.open{display:block;}
-.detail-modal{display:none;position:fixed;top:78px;right:20px;width:320px;max-height:66vh;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 16px 40px rgba(15,20,26,0.28);z-index:921;overflow:hidden;}
+.detail-modal{display:none;position:fixed;top:78px;right:20px;width:320px;max-height:66vh;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(10,15,25,0.35), 0 2px 8px rgba(10,15,25,0.15);z-index:921;overflow:hidden;border-top:3px solid var(--accent);}
 .detail-modal.open{display:flex;flex-direction:column;}
 .detail-modal .detail-panel{flex:1;min-height:0;}
 @media (max-width:860px){
@@ -86,38 +86,41 @@ header{padding:14px 20px;border-bottom:1px solid var(--border);background:linear
 /* 새 맨홀 추가 팝업 */
 .add-backdrop{display:none;position:fixed;inset:0;background:rgba(15,20,26,0.35);z-index:930;}
 .add-backdrop.open{display:block;}
-.add-modal{display:none;flex-direction:column;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:300px;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 16px 40px rgba(15,20,26,0.3);z-index:931;overflow:hidden;}
+.add-modal{display:none;flex-direction:column;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:300px;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 70px rgba(10,15,25,0.4), 0 2px 8px rgba(10,15,25,0.18);z-index:931;overflow:hidden;border-top:3px solid var(--accent);}
 .add-modal.open{display:flex;}
 .panel{border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0;background:var(--panel);overflow:hidden;}
 .main > .panel:last-child{border-right:none;border-left:1px solid var(--border);}
 
 /* sidebar left */
 .side-section{padding:14px;border-bottom:1px solid var(--border);}
-.upload-box{border:1.5px dashed var(--border);border-radius:10px;padding:16px;text-align:center;cursor:pointer;transition:.15s;}
-.upload-box:hover{border-color:var(--accent);background:rgba(11,99,206,0.05);}
+.upload-box{border:1.5px dashed var(--border);border-radius:10px;padding:18px 16px;text-align:center;cursor:pointer;transition:.15s;background:linear-gradient(180deg,#fff,var(--panel-2));box-shadow:0 1px 3px rgba(20,30,45,0.05);}
+.upload-box:hover{border-color:var(--accent);background:rgba(11,99,206,0.06);box-shadow:0 3px 10px rgba(11,99,206,0.12);transform:translateY(-1px);}
 .upload-box input{display:none;}
-.upload-box .ic{font-size:22px;margin-bottom:4px;}
-.upload-box .t1{font-size:12.5px;font-weight:600;}
+.upload-box .ic{width:38px;height:38px;margin:0 auto 8px;border-radius:50%;background:linear-gradient(160deg,var(--accent),#0A4FA3);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(11,99,206,0.35);}
+.upload-box .ic svg{width:19px;height:19px;color:#fff;}
+.upload-box .t1{font-size:12.5px;font-weight:700;}
 .upload-box .t2{font-size:10.5px;color:var(--text-dim);margin-top:3px;font-family:var(--mono);}
 .search-input{width:100%;background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:7px;font-size:13px;font-family:var(--mono);}
 .search-input:focus{outline:none;border-color:var(--accent);}
 .filter-tabs{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap;}
 .ftab{font-size:11px;padding:5px 9px;border-radius:6px;background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);cursor:pointer;}
-.ftab.active{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700;}
+.ftab.active{background:linear-gradient(180deg,#2073DB,var(--accent));color:#fff;border-color:var(--accent);font-weight:700;box-shadow:0 2px 6px rgba(11,99,206,0.35);}
 .list-wrap{flex:1;overflow-y:auto;}
 
 /* side menu bar */
-.top-toolbar{display:flex;gap:6px;}
-.top-toolbar button{background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.3);border-radius:7px;padding:7px 13px;font-family:var(--sans);font-size:12px;font-weight:600;color:rgba(255,255,255,0.85);cursor:pointer;}
-.top-toolbar button.active{color:#0B63CE;background:#fff;border-color:#fff;}
+.top-toolbar{display:flex;gap:7px;}
+.top-toolbar button{display:flex;align-items:center;gap:6px;background:linear-gradient(180deg,rgba(255,255,255,0.2),rgba(255,255,255,0.08));border:1px solid rgba(255,255,255,0.32);border-radius:8px;padding:8px 15px;font-family:var(--sans);font-size:12.5px;font-weight:700;color:rgba(255,255,255,0.92);cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.2);transition:transform .12s ease, box-shadow .12s ease;}
+.top-toolbar button:hover{transform:translateY(-1px);box-shadow:0 4px 10px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.25);}
+.top-toolbar button svg{width:14px;height:14px;flex-shrink:0;}
+.top-toolbar button.active{color:#0B4FA8;background:linear-gradient(180deg,#fff,#EAF2FF);border-color:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.22);}
 .menu-content{display:flex;flex-direction:column;flex:1;min-height:0;}
 .sub-tabs{display:flex;gap:6px;}
 .stab{font-size:11.5px;padding:6px 12px;border-radius:16px;background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);cursor:pointer;font-weight:600;}
-.stab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.stab.active{background:linear-gradient(180deg,#2073DB,var(--accent));color:#fff;border-color:var(--accent);box-shadow:0 2px 6px rgba(11,99,206,0.35);}
 #statusManholeView{display:flex;flex-direction:column;flex:1;min-height:0;}
 .mode-tabs{display:flex;gap:5px;margin-bottom:6px;}
 .mtab{flex:1;font-size:11px;padding:6px 4px;border-radius:6px;background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);cursor:pointer;font-weight:600;text-align:center;}
-.mtab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.mtab.active{background:linear-gradient(180deg,#2073DB,var(--accent));color:#fff;border-color:var(--accent);box-shadow:0 2px 6px rgba(11,99,206,0.3);}
 .mtab[data-mode="replace"].active{background:var(--st-progress);border-color:var(--st-progress);}
 .mtab[data-mode="delete"].active{background:var(--st-bad);border-color:var(--st-bad);}
 .mode-hint{font-size:10.5px;color:var(--text-dim);margin-bottom:8px;line-height:1.4;}
@@ -149,7 +152,10 @@ header{padding:14px 20px;border-bottom:1px solid var(--border);background:linear
 .mh-label{background:rgba(255,255,255,0.92);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--text);box-shadow:none;}
 .mh-label-big{font-size:21px;padding:3px 9px;border-radius:6px;border:2px solid var(--accent);background:#fff;color:var(--accent);font-weight:800;}
 .mh-label::before{border-top-color:rgba(255,255,255,0.92) !important;}
-.locate-btn{display:flex;align-items:center;justify-content:center;width:30px;height:30px;background:#fff;font-size:16px;text-decoration:none;cursor:pointer;}
+.locate-btn{display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:linear-gradient(180deg,#fff,#F3F5F8);color:#3A4552;font-size:16px;text-decoration:none;cursor:pointer;transition:background .12s ease;}
+.locate-btn:hover{background:linear-gradient(180deg,#F7F9FC,#EBEEF2);}
+.spin-icon{animation:spin 0.9s linear infinite;}
+@keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
 .locate-btn-active{background:var(--accent) !important;color:#fff;filter:brightness(1.1);}
 .locate-btn:hover{background:#f4f4f4;}
 .legend span{display:inline-flex;align-items:center;gap:5px;}
@@ -201,6 +207,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
   .mobile-tabbar{display:flex;flex-shrink:0;background:var(--panel);border-top:1px solid var(--border);position:relative;z-index:950;}
   .mobile-tabbar button{flex:1;background:transparent;border:none;font-family:var(--sans);font-size:11px;color:var(--text-dim);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));cursor:pointer;}
   .mobile-tabbar button .ic{font-size:18px;}
+  .mobile-tabbar button .ic svg{width:20px;height:20px;}
   .mobile-tabbar button.active{color:var(--accent);font-weight:700;}
 
   .top-toolbar{gap:5px;order:3;width:100%;}
@@ -231,10 +238,10 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
     <div class="sub">CIRCULAR SEWER PIPE · MANHOLE SURVEY CONTROL · LiDAR SCAN / INVERT·LADDER·FALL-PREVENTION INSPECTION</div>
   </div>
   <div class="top-toolbar">
-    <button data-menu="admin">⚙ 관리자</button>
-    <button data-menu="search">🔍 검색</button>
-    <button data-menu="status" class="active">📊 현황</button>
-    <button data-menu="stats">📈 통계</button>
+    <button data-menu="admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>관리자</button>
+    <button data-menu="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>검색</button>
+    <button data-menu="status" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></svg>현황</button>
+    <button data-menu="stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>통계</button>
   </div>
   <div class="progress-wrap">
     <div class="progress-label"><span id="pct">0</span>% 완료 (<span id="doneCount2">0</span>/<span id="totalCount2">0</span>)</div>
@@ -265,7 +272,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
         <div class="mode-hint" id="manholeModeHint">엑셀의 맨홀만 새로 추가/갱신하고, 기존 맨홀은 그대로 둡니다.</div>
         <label class="upload-box" id="uploadBox">
           <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
-          <div class="ic">📤</div>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg></div>
           <div class="t1">맨홀 엑셀 업로드 (맨홀번호, X, Y, Z)</div>
           <div class="t2">.xlsx / .xls / .csv 지원</div>
         </label>
@@ -279,7 +286,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
         <div class="mode-hint" id="cpModeHint">엑셀의 기준점만 새로 추가/갱신하고, 기존 기준점은 그대로 둡니다.</div>
         <label class="upload-box" id="cpUploadBox">
           <input type="file" id="cpFileInput" accept=".xlsx,.xls,.csv">
-          <div class="ic">📐</div>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg></div>
           <div class="t1">기준점 엑셀 업로드 (기준점명, X, Y, Z)</div>
           <div class="t2">.xlsx / .xls / .csv 지원 · 이름 기준으로 갱신</div>
         </label>
@@ -388,14 +395,14 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 </div>
 
 <div class="mobile-tabbar">
-  <button class="tab-list" data-tab="list"><span class="ic">📋</span>목록</button>
-  <button class="tab-map active" data-tab="map"><span class="ic">🗺️</span>지도</button>
+  <button class="tab-list" data-tab="list"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg></span>목록</button>
+  <button class="tab-map active" data-tab="map"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line></svg></span>지도</button>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v3.1 · 2026-07-23';
+const APP_VERSION = 'v3.2 · 2026-07-23';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 /* 여러 사람이 실시간으로 데이터를 공유하려면 아래에 Firebase Realtime Database 주소를 넣으세요.
    예: 'https://landsurvey2026-xxxxx-default-rtdb.asia-southeast1.firebasedatabase.app'
@@ -1094,7 +1101,7 @@ const AddManholeControl = L.Control.extend({
     const btn = L.DomUtil.create('a', 'locate-btn', container);
     btn.href = '#';
     btn.title = '새 맨홀 추가';
-    btn.innerHTML = '➕';
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>';
     L.DomEvent.disableClickPropagation(container);
     L.DomEvent.on(btn, 'click', function(e){
       L.DomEvent.preventDefault(e);
@@ -1111,7 +1118,7 @@ const MoveManholeControl = L.Control.extend({
     const btn = L.DomUtil.create('a', 'locate-btn', container);
     btn.href = '#';
     btn.title = '맨홀 이동';
-    btn.innerHTML = '⇄';
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="5 9 2 12 5 15"></polyline><polyline points="9 5 12 2 15 5"></polyline><polyline points="15 19 12 22 9 19"></polyline><polyline points="19 9 22 12 19 15"></polyline><line x1="2" y1="12" x2="22" y2="12"></line><line x1="12" y1="2" x2="12" y2="22"></line></svg>';
     L.DomEvent.disableClickPropagation(container);
     L.DomEvent.on(btn, 'click', function(e){
       L.DomEvent.preventDefault(e);
@@ -1157,15 +1164,15 @@ const LocateControl = L.Control.extend({
   options:{ position:'topright' },
   onAdd: function(map){
     const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-    const btn = L.DomUtil.create('a', 'locate-btn', container);
+    const btn = L.DomUtil.create('a', 'locate-btn gps-btn', container);
     btn.href = '#';
     btn.title = '내 위치';
-    btn.innerHTML = '📍';
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>';
     L.DomEvent.disableClickPropagation(container);
     L.DomEvent.on(btn, 'click', function(e){
       L.DomEvent.preventDefault(e);
       if(!navigator.geolocation){ showToast('이 브라우저는 위치 정보를 지원하지 않습니다'); return; }
-      btn.innerHTML = '⏳';
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon" width="15" height="15"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>';
       map.locate({setView:true, maxZoom:18, enableHighAccuracy:true, timeout:10000});
     });
     return container;
@@ -1194,7 +1201,7 @@ function initLeaflet(){
   leafletMap.on('zoomend moveend', updateLabelVisibility);
 
   leafletMap.on('locationfound', (e)=>{
-    document.querySelectorAll('.locate-btn').forEach(b=>b.innerHTML='📍');
+    document.querySelectorAll('.gps-btn').forEach(b=>b.innerHTML='<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" width=\"15\" height=\"15\"><path d=\"M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z\"></path><circle cx=\"12\" cy=\"10\" r=\"3\"></circle></svg>');
     if(meMarker) leafletMap.removeLayer(meMarker);
     if(meCircle) leafletMap.removeLayer(meCircle);
     meCircle = L.circle(e.latlng, {radius:e.accuracy, color:'#0B63CE', weight:1, fillColor:'#0B63CE', fillOpacity:0.1}).addTo(leafletMap);
@@ -1202,7 +1209,7 @@ function initLeaflet(){
     meMarker.bindTooltip('내 위치', {direction:'top', offset:[0,-8]});
   });
   leafletMap.on('locationerror', (e)=>{
-    document.querySelectorAll('.locate-btn').forEach(b=>b.innerHTML='📍');
+    document.querySelectorAll('.gps-btn').forEach(b=>b.innerHTML='<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" width=\"15\" height=\"15\"><path d=\"M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z\"></path><circle cx=\"12\" cy=\"10\" r=\"3\"></circle></svg>');
     showToast('위치를 가져올 수 없습니다: ' + e.message);
   });
 
@@ -1249,27 +1256,42 @@ function renderControlPoints(){
 }
 
 /* 실제 하수 맨홀뚜껑 모양의 마커 아이콘 (원형 테두리 + 방사형 패턴) */
+let _iconSeq = 0;
 function manholeIcon(color, isSel, isActive, big){
   let size = isSel ? 32 : 25;
   if(big) size = size * 2;
   const op = isActive ? 1 : 0.3;
-  const ring = isSel ? '#0B63CE' : '#24272A';
+  const ring = isSel ? '#0B63CE' : '#1A1D20';
   const ringW = isSel ? 2.6 : 1.4;
+  const gid = 'rim'+(_iconSeq++);
+  const gid2 = 'sheen'+_iconSeq;
   return L.divIcon({
     className:'',
-    html:`<div style="opacity:${op};filter:drop-shadow(0 1px 3px rgba(0,0,0,0.55))${isSel?' drop-shadow(0 0 5px rgba(11,99,206,0.8))':''};">
+    html:`<div style="opacity:${op};filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5))${isSel?' drop-shadow(0 0 6px rgba(11,99,206,0.85))':''};">
       <svg width="${size}" height="${size}" viewBox="0 0 26 26">
-        <circle cx="13" cy="13" r="12" fill="#585C60" stroke="${ring}" stroke-width="${ringW}"/>
-        <circle cx="13" cy="13" r="10.2" fill="#FFFFFF"/>
+        <defs>
+          <radialGradient id="${gid}" cx="35%" cy="30%" r="75%">
+            <stop offset="0%" stop-color="#82898F"/>
+            <stop offset="55%" stop-color="#5A6066"/>
+            <stop offset="100%" stop-color="#33373B"/>
+          </radialGradient>
+          <radialGradient id="${gid2}" cx="35%" cy="28%" r="65%">
+            <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.55"/>
+            <stop offset="45%" stop-color="#FFFFFF" stop-opacity="0.08"/>
+            <stop offset="100%" stop-color="#000000" stop-opacity="0.12"/>
+          </radialGradient>
+        </defs>
+        <circle cx="13" cy="13" r="12" fill="url(#${gid})" stroke="${ring}" stroke-width="${ringW}"/>
+        <circle cx="13" cy="13" r="10.2" fill="#F4F6F8"/>
         <circle cx="13" cy="13" r="9" fill="${color}" stroke="#1A1C1E" stroke-width="1"/>
-        <g stroke="rgba(0,0,0,0.4)" stroke-width="1">
+        <g stroke="rgba(0,0,0,0.38)" stroke-width="1">
           <line x1="13" y1="4.6" x2="13" y2="21.4"/>
           <line x1="4.6" y1="13" x2="21.4" y2="13"/>
           <line x1="6.9" y1="6.9" x2="19.1" y2="19.1"/>
           <line x1="19.1" y1="6.9" x2="6.9" y2="19.1"/>
         </g>
-        <circle cx="13" cy="13" r="9" fill="none" stroke="rgba(0,0,0,0.32)" stroke-width="1"/>
-        <circle cx="13" cy="13" r="3" fill="none" stroke="rgba(0,0,0,0.32)" stroke-width="0.8"/>
+        <circle cx="13" cy="13" r="9" fill="url(#${gid2})" stroke="rgba(0,0,0,0.32)" stroke-width="1"/>
+        <circle cx="13" cy="13" r="3" fill="none" stroke="rgba(0,0,0,0.35)" stroke-width="0.8"/>
       </svg>
     </div>`,
     iconSize:[size,size],
