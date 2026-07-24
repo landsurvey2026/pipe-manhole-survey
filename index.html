@@ -334,7 +334,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
       </div>
     </div>
 
-    <div class="menu-content" id="menuStats" style="display:none;">
+    <div class="menu-content" id="menuStats" style="display:none;overflow-y:auto;">
       <div class="side-section">
         <div style="font-size:12.5px;color:var(--text-dim);margin-bottom:14px;line-height:1.6;">
           전체 <b style="color:var(--text);" id="statsTotal">0</b>개 · 완료 <b style="color:var(--st-done);" id="statsDone">0</b>개 (<span id="statsPct">0</span>%)
@@ -343,7 +343,18 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
         <select id="statsDateSelect" style="width:100%;background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:6px;font-size:12.5px;margin-bottom:10px;"></select>
         <button id="statsShowRouteBtn" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:7px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;">이 날짜 경로 보기</button>
       </div>
-      <div id="statsDateListWrap" style="flex:1;overflow-y:auto;padding:0 14px 14px;font-size:12px;"></div>
+      <div id="statsDateListWrap" style="padding:0 14px 14px;font-size:12px;"></div>
+
+      <div class="side-section" style="border-top:1px solid var(--border);padding-top:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <label style="font-size:11px;color:var(--text-dim);font-weight:700;">기간별 진행현황</label>
+          <div class="sub-tabs" id="periodTabs">
+            <div class="stab active" data-period="week" style="padding:4px 11px;font-size:10.5px;">주간</div>
+            <div class="stab" data-period="month" style="padding:4px 11px;font-size:10.5px;">월간</div>
+          </div>
+        </div>
+        <div id="periodTableWrap" style="overflow-x:auto;"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -402,7 +413,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v3.2 · 2026-07-23';
+const APP_VERSION = 'v3.3 · 2026-07-23';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 /* 여러 사람이 실시간으로 데이터를 공유하려면 아래에 Firebase Realtime Database 주소를 넣으세요.
    예: 'https://landsurvey2026-xxxxx-default-rtdb.asia-southeast1.firebasedatabase.app'
@@ -815,6 +826,7 @@ function renderStatsModal(){
     : '<option value="">조사일자가 입력된 맨홀이 없습니다</option>';
   if(dates.includes(prevVal)) sel.value = prevVal;
   renderStatsDateList();
+  renderPeriodTable();
 }
 function renderStatsDateList(){
   const sel = document.getElementById('statsDateSelect');
@@ -829,6 +841,74 @@ document.getElementById('statsShowRouteBtn').addEventListener('click', ()=>{
   const sel = document.getElementById('statsDateSelect');
   if(!sel.value){ showToast('날짜를 선택해주세요'); return; }
   startDayView(sel.value);
+});
+
+/* ---------- 기간별(주간/월간) 진행현황: 총물량/누적물량/진행물량/진행율 ---------- */
+let periodMode = 'week';
+function isoWeekKey(dateStr){
+  const d = new Date(dateStr+'T00:00:00');
+  if(isNaN(d.getTime())) return null;
+  const target = new Date(d.valueOf());
+  const dayNr = (d.getDay()+6)%7;
+  target.setDate(target.getDate()-dayNr+3);
+  const firstThursday = target.valueOf();
+  target.setMonth(0,1);
+  if(target.getDay()!==4){ target.setMonth(0, 1 + ((4-target.getDay())+7)%7); }
+  const weekNumber = 1 + Math.round((firstThursday-target.valueOf())/(7*24*3600*1000));
+  return `${d.getFullYear()}-W${String(weekNumber).padStart(2,'0')}`;
+}
+function monthKey(dateStr){
+  return dateStr ? dateStr.slice(0,7) : null;
+}
+function renderPeriodTable(){
+  const wrap = document.getElementById('periodTableWrap');
+  if(!wrap) return;
+  const all = state.order.map(id=>state.manholes[id]).filter(Boolean);
+  const total = all.length;
+  const dated = all.filter(m=>m.date);
+  const keyFn = periodMode==='week' ? (m=>isoWeekKey(m.date)) : (m=>monthKey(m.date));
+  const counts = {};
+  dated.forEach(m=>{
+    const k = keyFn(m);
+    if(!k) return;
+    counts[k] = (counts[k]||0) + 1;
+  });
+  const keys = Object.keys(counts).sort();
+  if(!keys.length){
+    wrap.innerHTML = '<div class="empty-note">조사일자가 입력된 데이터가 없습니다.</div>';
+    return;
+  }
+  const label = periodMode==='week' ? '주차' : '월';
+  let cum = 0;
+  let rowsHtml = '';
+  keys.forEach(k=>{
+    cum += counts[k];
+    const rate = total ? Math.round(cum/total*1000)/10 : 0;
+    rowsHtml += `<tr>
+      <td style="padding:5px 7px;border-bottom:1px solid var(--border);text-align:left;">${k}</td>
+      <td style="padding:5px 7px;border-bottom:1px solid var(--border);text-align:right;">${total}</td>
+      <td style="padding:5px 7px;border-bottom:1px solid var(--border);text-align:right;color:var(--st-progress);font-weight:700;">+${counts[k]}</td>
+      <td style="padding:5px 7px;border-bottom:1px solid var(--border);text-align:right;">${cum}</td>
+      <td style="padding:5px 7px;border-bottom:1px solid var(--border);text-align:right;color:var(--accent);font-weight:800;">${rate}%</td>
+    </tr>`;
+  });
+  wrap.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:10.5px;font-family:var(--mono);white-space:nowrap;">
+    <thead><tr style="color:var(--text-dim);">
+      <th style="padding:5px 7px;border-bottom:1px solid var(--border);text-align:left;">${label}</th>
+      <th style="padding:5px 7px;border-bottom:1px solid var(--border);text-align:right;">총물량</th>
+      <th style="padding:5px 7px;border-bottom:1px solid var(--border);text-align:right;">진행물량</th>
+      <th style="padding:5px 7px;border-bottom:1px solid var(--border);text-align:right;">누적물량</th>
+      <th style="padding:5px 7px;border-bottom:1px solid var(--border);text-align:right;">진행율</th>
+    </tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>`;
+}
+document.getElementById('periodTabs').addEventListener('click', (e)=>{
+  const b = e.target.closest('.stab');
+  if(!b) return;
+  periodMode = b.dataset.period;
+  document.querySelectorAll('#periodTabs .stab').forEach(x=>x.classList.toggle('active', x===b));
+  renderPeriodTable();
 });
 
 let dayViewDate = null;
