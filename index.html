@@ -413,7 +413,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v3.3 · 2026-07-23';
+const APP_VERSION = 'v3.4 · 2026-07-23';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 /* 여러 사람이 실시간으로 데이터를 공유하려면 아래에 Firebase Realtime Database 주소를 넣으세요.
    예: 'https://landsurvey2026-xxxxx-default-rtdb.asia-southeast1.firebasedatabase.app'
@@ -845,20 +845,27 @@ document.getElementById('statsShowRouteBtn').addEventListener('click', ()=>{
 
 /* ---------- 기간별(주간/월간) 진행현황: 총물량/누적물량/진행물량/진행율 ---------- */
 let periodMode = 'week';
-function isoWeekKey(dateStr){
+function periodInfo(dateStr){
   const d = new Date(dateStr+'T00:00:00');
   if(isNaN(d.getTime())) return null;
-  const target = new Date(d.valueOf());
-  const dayNr = (d.getDay()+6)%7;
-  target.setDate(target.getDate()-dayNr+3);
-  const firstThursday = target.valueOf();
-  target.setMonth(0,1);
-  if(target.getDay()!==4){ target.setMonth(0, 1 + ((4-target.getDay())+7)%7); }
-  const weekNumber = 1 + Math.round((firstThursday-target.valueOf())/(7*24*3600*1000));
-  return `${d.getFullYear()}-W${String(weekNumber).padStart(2,'0')}`;
-}
-function monthKey(dateStr){
-  return dateStr ? dateStr.slice(0,7) : null;
+  const year = d.getFullYear();
+  const month = d.getMonth(); // 0-indexed
+  if(periodMode==='week'){
+    const firstOfMonth = new Date(year, month, 1);
+    const mondayIdx = (firstOfMonth.getDay()+6)%7; // 월요일 기준 그 달 1일까지의 거리
+    const week1Start = new Date(year, month, 1 - mondayIdx);
+    const diffDays = Math.floor((d - week1Start) / (24*3600*1000));
+    const weekNum = Math.floor(diffDays/7) + 1;
+    return {
+      sortKey: `${year}-${String(month+1).padStart(2,'0')}-W${String(weekNum).padStart(2,'0')}`,
+      label: `${month+1}월 ${weekNum}주차`
+    };
+  }else{
+    return {
+      sortKey: `${year}-${String(month+1).padStart(2,'0')}`,
+      label: `${month+1}월`
+    };
+  }
 }
 function renderPeriodTable(){
   const wrap = document.getElementById('periodTableWrap');
@@ -866,14 +873,14 @@ function renderPeriodTable(){
   const all = state.order.map(id=>state.manholes[id]).filter(Boolean);
   const total = all.length;
   const dated = all.filter(m=>m.date);
-  const keyFn = periodMode==='week' ? (m=>isoWeekKey(m.date)) : (m=>monthKey(m.date));
-  const counts = {};
+  const groups = {}; // sortKey -> {label, count}
   dated.forEach(m=>{
-    const k = keyFn(m);
-    if(!k) return;
-    counts[k] = (counts[k]||0) + 1;
+    const info = periodInfo(m.date);
+    if(!info) return;
+    if(!groups[info.sortKey]) groups[info.sortKey] = {label:info.label, count:0};
+    groups[info.sortKey].count++;
   });
-  const keys = Object.keys(counts).sort();
+  const keys = Object.keys(groups).sort();
   if(!keys.length){
     wrap.innerHTML = '<div class="empty-note">조사일자가 입력된 데이터가 없습니다.</div>';
     return;
@@ -882,12 +889,13 @@ function renderPeriodTable(){
   let cum = 0;
   let rowsHtml = '';
   keys.forEach(k=>{
-    cum += counts[k];
+    const g = groups[k];
+    cum += g.count;
     const rate = total ? Math.round(cum/total*1000)/10 : 0;
     rowsHtml += `<tr>
-      <td style="padding:5px 7px;border-bottom:1px solid var(--border);text-align:left;">${k}</td>
+      <td style="padding:5px 7px;border-bottom:1px solid var(--border);text-align:left;">${g.label}</td>
       <td style="padding:5px 7px;border-bottom:1px solid var(--border);text-align:right;">${total}</td>
-      <td style="padding:5px 7px;border-bottom:1px solid var(--border);text-align:right;color:var(--st-progress);font-weight:700;">+${counts[k]}</td>
+      <td style="padding:5px 7px;border-bottom:1px solid var(--border);text-align:right;color:var(--st-progress);font-weight:700;">+${g.count}</td>
       <td style="padding:5px 7px;border-bottom:1px solid var(--border);text-align:right;">${cum}</td>
       <td style="padding:5px 7px;border-bottom:1px solid var(--border);text-align:right;color:var(--accent);font-weight:800;">${rate}%</td>
     </tr>`;
@@ -1112,6 +1120,35 @@ function fromLatLng(lat,lon){
   }catch(e){ return null; }
 }
 
+/* ---------- 지도 더블클릭 → 주소 조회 + 카카오맵 연결 ---------- */
+async function showAddressPopup(latlng){
+  const lat = latlng.lat, lng = latlng.lng;
+  const popup = L.popup({closeButton:true, maxWidth:260})
+    .setLatLng(latlng)
+    .setContent('<div style="font-family:var(--sans);font-size:12.5px;color:#333;">주소 조회 중...</div>')
+    .openOn(leafletMap);
+  const kakaoUrl = `https://map.kakao.com/link/map/위치,${lat},${lng}`;
+  let addrText = '주소를 찾을 수 없습니다';
+  try{
+    const url = `https://api.vworld.kr/req/address?service=address&request=getAddress&version=2.0&crs=epsg:4326&point=${lng},${lat}&type=both&format=json&key=${VWORLD_KEY}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const result = data && data.response && data.response.result;
+    if(Array.isArray(result) && result.length && result[0].text){
+      addrText = result[0].text;
+    }else if(result && result.text){
+      addrText = result.text;
+    }
+  }catch(e){ /* 주소 조회 실패 시 좌표만 표시 */ }
+  popup.setContent(`
+    <div style="font-family:var(--sans);font-size:12.5px;color:#222;line-height:1.6;min-width:180px;">
+      <div style="font-weight:700;margin-bottom:2px;">${addrText}</div>
+      <div style="font-family:var(--mono);font-size:10.5px;color:#777;margin-bottom:8px;">${lat.toFixed(6)}, ${lng.toFixed(6)}</div>
+      <a href="${kakaoUrl}" target="_blank" rel="noopener" style="display:inline-block;background:#FEE500;color:#3C1E1E;font-weight:700;padding:6px 12px;border-radius:6px;text-decoration:none;font-size:11.5px;">카카오맵에서 보기 →</a>
+    </div>
+  `);
+}
+
 /* ---------- 맨홀 위치 이동 / 새 맨홀 추가 (지도 클릭으로 좌표 지정) ---------- */
 let moveModeId = null;
 let addModeId = null;
@@ -1264,7 +1301,7 @@ function initLeaflet(){
   leafletMap = L.map(host, {
     zoomControl:false,
     scrollWheelZoom:true,
-    doubleClickZoom:true,
+    doubleClickZoom:false,
     maxZoom:21,
     attributionControl:false
   }).setView([37.5665,126.9780], 12);
@@ -1277,6 +1314,10 @@ function initLeaflet(){
 
   leafletMap.on('click', (e)=>{
     if(moveModeId || addModeId){ handleMapPlacementClick(e.latlng); }
+  });
+  leafletMap.on('dblclick', (e)=>{
+    if(moveModeId || addModeId) return;
+    showAddressPopup(e.latlng);
   });
   leafletMap.on('zoomend moveend', updateLabelVisibility);
 
