@@ -413,7 +413,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v3.8 · 2026-07-23';
+const APP_VERSION = 'v3.9 · 2026-07-23';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 /* 여러 사람이 실시간으로 데이터를 공유하려면 아래에 Firebase Realtime Database 주소를 넣으세요.
    예: 'https://landsurvey2026-xxxxx-default-rtdb.asia-southeast1.firebasedatabase.app'
@@ -1112,6 +1112,8 @@ function loadKakaoSdk(){
   if(kakaoSdkPromise) return kakaoSdkPromise;
   kakaoSdkPromise = new Promise((resolve, reject)=>{
     if(!KAKAO_JS_KEY){ reject('no-key'); return; }
+    const existing = document.getElementById('kakaoSdkScript');
+    if(existing) existing.remove(); // 이전 실패한 스크립트 태그 제거 후 재시도
     const script = document.createElement('script');
     script.id = 'kakaoSdkScript';
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_JS_KEY}&libraries=services&autoload=false`;
@@ -1124,6 +1126,9 @@ function loadKakaoSdk(){
     };
     script.onerror = ()=>reject('load-failed');
     document.head.appendChild(script);
+  }).catch(err=>{
+    kakaoSdkPromise = null; // 실패하면 캐시를 비워서 다음 시도 때 다시 요청하도록 함
+    throw err;
   });
   return kakaoSdkPromise;
 }
