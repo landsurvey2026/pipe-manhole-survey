@@ -413,7 +413,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v3.7 · 2026-07-23';
+const APP_VERSION = 'v3.8 · 2026-07-23';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 /* 여러 사람이 실시간으로 데이터를 공유하려면 아래에 Firebase Realtime Database 주소를 넣으세요.
    예: 'https://landsurvey2026-xxxxx-default-rtdb.asia-southeast1.firebasedatabase.app'
@@ -1107,23 +1107,31 @@ proj4.defs('EPSG:5186','+proj=tmerc +lat_0=38 +lon_0=127 +k=1 +x_0=200000 +y_0=6
 /* 주소 자동조회용 카카오맵 JavaScript 키 (선택사항). 발급받아 넣으면 더블클릭 시 주소가 자동으로 표시됩니다.
    비워두면 좌표 + 카카오맵 바로가기 버튼만 표시됩니다. */
 const KAKAO_JS_KEY = 'e0b40f11ecd987d6bfabf607fa2200b5';
-let kakaoSdkLoaded = false;
+let kakaoSdkPromise = null;
 function loadKakaoSdk(){
-  return new Promise((resolve, reject)=>{
+  if(kakaoSdkPromise) return kakaoSdkPromise;
+  kakaoSdkPromise = new Promise((resolve, reject)=>{
     if(!KAKAO_JS_KEY){ reject('no-key'); return; }
-    if(kakaoSdkLoaded && window.kakao && window.kakao.maps){ resolve(); return; }
-    const existing = document.getElementById('kakaoSdkScript');
-    if(existing){
-      existing.addEventListener('load', ()=>{ window.kakao.maps.load(()=>{ kakaoSdkLoaded = true; resolve(); }); });
-      return;
-    }
     const script = document.createElement('script');
     script.id = 'kakaoSdkScript';
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_JS_KEY}&libraries=services&autoload=false`;
-    script.onload = ()=>{ window.kakao.maps.load(()=>{ kakaoSdkLoaded = true; resolve(); }); };
+    script.onload = ()=>{
+      if(window.kakao && window.kakao.maps){
+        window.kakao.maps.load(()=>resolve());
+      }else{
+        reject('sdk-not-ready');
+      }
+    };
     script.onerror = ()=>reject('load-failed');
     document.head.appendChild(script);
   });
+  return kakaoSdkPromise;
+}
+function withTimeout(promise, ms){
+  return Promise.race([
+    promise,
+    new Promise((_, reject)=>setTimeout(()=>reject('timeout'), ms))
+  ]);
 }
 
 function toLatLng(x,y){
@@ -1158,8 +1166,8 @@ async function showAddressPopup(latlng){
     debugNote = '주소 자동조회는 아직 설정되지 않았습니다. 아래 버튼으로 카카오맵에서 확인해주세요.';
   }else{
     try{
-      await loadKakaoSdk();
-      addrText = await new Promise((resolve, reject)=>{
+      await withTimeout(loadKakaoSdk(), 6000);
+      addrText = await withTimeout(new Promise((resolve, reject)=>{
         const geocoder = new kakao.maps.services.Geocoder();
         geocoder.coord2Address(lng, lat, (result, status)=>{
           if(status === kakao.maps.services.Status.OK && result && result[0]){
@@ -1170,10 +1178,13 @@ async function showAddressPopup(latlng){
             resolve(null);
           }
         });
-      });
+      }), 6000);
       if(!addrText) debugNote = '해당 위치의 주소를 찾지 못했습니다.';
     }catch(e){
-      debugNote = '주소 조회에 실패했습니다. 아래 버튼으로 카카오맵에서 확인해주세요.';
+      console.error('Kakao geocoding error:', e);
+      debugNote = e==='timeout'
+        ? '주소 조회가 지연되고 있습니다 (카카오 키의 도메인 등록을 확인해주세요). 아래 버튼으로 카카오맵에서 확인해주세요.'
+        : '주소 조회에 실패했습니다. 아래 버튼으로 카카오맵에서 확인해주세요.';
     }
   }
   popup.setContent(`
