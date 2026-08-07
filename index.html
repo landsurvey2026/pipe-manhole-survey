@@ -153,6 +153,8 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
 .mh-label-big{font-size:21px;padding:3px 9px;border-radius:6px;border:2px solid var(--accent);background:#fff;color:var(--accent);font-weight:800;}
 .cp-label{background:#8B5CF6;border:1.5px solid #fff;border-radius:4px;padding:2px 7px;font-family:var(--mono);font-size:11px;font-weight:700;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.35);}
 .cp-label::before{border-top-color:#8B5CF6 !important;}
+.cp-label-lost{background:#E5484D;}
+.cp-label-lost::before{border-top-color:#E5484D !important;}
 .mh-label::before{border-top-color:rgba(255,255,255,0.92) !important;}
 .locate-btn{display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:linear-gradient(180deg,#fff,#F3F5F8);color:#3A4552;font-size:16px;text-decoration:none;cursor:pointer;transition:background .12s ease;}
 .locate-btn:hover{background:linear-gradient(180deg,#F7F9FC,#EBEEF2);}
@@ -218,8 +220,9 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
   .menu-modal .list-wrap{flex:1;}
   .view-toggle{top:8px;left:8px;}
   #basemapToggle{top:44px;}
+  #layerToggle{top:80px;}
   .legend{bottom:8px;left:8px;flex-wrap:wrap;max-width:60%;font-size:9.5px;gap:6px;}
-  .leaflet-top.leaflet-left{top:88px;}
+  .leaflet-top.leaflet-left{top:122px;}
 }
 .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
 
@@ -331,8 +334,11 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
         <div class="list-wrap" id="statusListSlot"></div>
       </div>
       <div id="statusCPView" style="display:none;">
-        <div class="side-section" style="display:flex;align-items:center;justify-content:space-between;">
-          <div style="font-size:12px;font-weight:700;color:var(--text-dim);">기준점 <span id="cpCount">0</span>개</div>
+        <div class="side-section" style="padding-bottom:10px;">
+          <div style="font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:8px;">
+            기준점 <span id="cpCount">0</span>개 · 존재 <span id="cpExistCount" style="color:#8B5CF6;">0</span> · 망실 <span id="cpLostCount" style="color:#E5484D;">0</span>
+          </div>
+          <input class="search-input" id="cpSearchInput" placeholder="기준점명 검색...">
         </div>
         <div id="cpList" style="padding:0 14px 14px;font-size:11.5px;font-family:var(--mono);overflow-y:auto;flex:1;"></div>
       </div>
@@ -372,6 +378,10 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
     <div class="view-toggle" id="basemapToggle" style="top:54px;">
       <button class="active" data-b="map">일반지도</button>
       <button data-b="sat">위성영상</button>
+    </div>
+    <div class="view-toggle" id="layerToggle" style="top:96px;">
+      <button class="active" data-layer="manhole">● 맨홀</button>
+      <button class="active" data-layer="cp">▲ 기준점</button>
     </div>
     <div id="mapHost" style="width:100%;height:100%;"></div>
     <div id="tableHost" style="width:100%;height:100%;display:none;"></div>
@@ -423,8 +433,12 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v4.4 · 2026-08-06';
+const APP_VERSION = 'v4.5 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
+function fmtCoord(v){
+  const n = Number(v);
+  return isFinite(n) ? n.toFixed(3) : (v ?? '-');
+}
 /* 여러 사람이 실시간으로 데이터를 공유하려면 아래에 Firebase Realtime Database 주소를 넣으세요.
    예: 'https://landsurvey2026-xxxxx-default-rtdb.asia-southeast1.firebasedatabase.app'
    비워두면(localStorage만 사용) 이 브라우저(기기)에서만 데이터가 저장됩니다. */
@@ -521,7 +535,7 @@ function renderCPDetail(){
     <div class="d-header">
       <div>
         <div class="d-title">▲ ${cp.name}</div>
-        <div class="d-coords">X ${cp.x}　Y ${cp.y}　Z ${cp.z}</div>
+        <div class="d-coords">X ${fmtCoord(cp.x)}　Y ${fmtCoord(cp.y)}　Z ${fmtCoord(cp.z)}</div>
       </div>
       <button class="detail-close-btn" id="cpDetailCloseBtn" title="닫기">✕</button>
     </div>
@@ -866,23 +880,36 @@ document.getElementById('cpFileInput').addEventListener('change', async (e)=>{
   e.target.value = '';
 });
 
+let cpSearchTerm = '';
 function renderCPList(){
   const list = document.getElementById('cpList');
   const cnt = document.getElementById('cpCount');
-  cnt.textContent = state.controlPoints.length;
-  if(!state.controlPoints.length){
+  const existCnt = document.getElementById('cpExistCount');
+  const lostCnt = document.getElementById('cpLostCount');
+  const all = state.controlPoints || [];
+  cnt.textContent = all.length;
+  if(existCnt) existCnt.textContent = all.filter(cp=>cp.status!=='망실').length;
+  if(lostCnt) lostCnt.textContent = all.filter(cp=>cp.status==='망실').length;
+  if(!all.length){
     list.innerHTML = '<div style="color:var(--text-dim);font-family:var(--sans);font-size:11.5px;">업로드된 기준점이 없습니다.</div>';
     return;
   }
-  list.innerHTML = state.controlPoints.map((cp,i)=>{
+  const term = cpSearchTerm.trim().toLowerCase();
+  const filtered = term ? all.filter(cp=>cp.name.toLowerCase().includes(term)) : all;
+  if(!filtered.length){
+    list.innerHTML = '<div style="color:var(--text-dim);font-family:var(--sans);font-size:11.5px;">검색 결과가 없습니다.</div>';
+    return;
+  }
+  list.innerHTML = filtered.map((cp)=>{
     const lost = cp.status==='망실';
+    const i = all.indexOf(cp);
     return `<div class="cp-row" data-i="${i}" style="padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer;">
       <div style="display:flex;align-items:center;gap:6px;">
         <span style="color:${lost?'#E5484D':'#8B5CF6'};font-weight:700;">▲</span>
         <span style="font-weight:600;color:var(--text);">${cp.name}</span>
         <span style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:${lost?'rgba(229,72,77,0.12)':'rgba(139,92,246,0.12)'};color:${lost?'#E5484D':'#8B5CF6'};">${lost?'망실':'존재'}</span>
       </div>
-      <div style="color:var(--text-dim);font-size:10.5px;margin-left:18px;">X:${cp.x} Y:${cp.y} Z:${cp.z}${lost && cp.lossReason ? ` · 사유: ${cp.lossReason==='기타'?(cp.lossReasonNote||'기타'):cp.lossReason}` : ''}</div>
+      <div style="color:var(--text-dim);font-size:10.5px;margin-left:18px;">X:${fmtCoord(cp.x)} Y:${fmtCoord(cp.y)} Z:${fmtCoord(cp.z)}${lost && cp.lossReason ? ` · 사유: ${cp.lossReason==='기타'?(cp.lossReasonNote||'기타'):cp.lossReason}` : ''}</div>
     </div>`;
   }).join('');
   list.querySelectorAll('.cp-row').forEach(r=>{
@@ -894,6 +921,10 @@ function renderCPList(){
     });
   });
 }
+document.getElementById('cpSearchInput').addEventListener('input', (e)=>{
+  cpSearchTerm = e.target.value;
+  renderCPList();
+});
 
 /* ---------- 조사자 관리 (관리자 메뉴) ---------- */
 function renderInspectorList(){
@@ -1299,7 +1330,7 @@ function fromLatLng(lat,lon){
   try{
     const [easting, northing] = proj4('WGS84','EPSG:5186',[lon,lat]);
     if(!isFinite(easting) || !isFinite(northing)) return null;
-    return { x: Math.round(northing*100)/100, y: Math.round(easting*100)/100 }; // x=남북(종거), y=동서(횡거)
+    return { x: Math.round(northing*1000)/1000, y: Math.round(easting*1000)/1000 }; // x=남북(종거), y=동서(횡거)
   }catch(e){ return null; }
 }
 
@@ -1307,7 +1338,7 @@ function fromLatLng(lat,lon){
 async function showAddressPopup(latlng){
   const lat = latlng.lat, lng = latlng.lng;
   const tm = fromLatLng(lat, lng);
-  const tmText = tm ? `X ${tm.x}　Y ${tm.y}` : '좌표 변환 실패';
+  const tmText = tm ? `X ${fmtCoord(tm.x)}　Y ${fmtCoord(tm.y)}` : '좌표 변환 실패';
   const popup = L.popup({closeButton:true, maxWidth:270})
     .setLatLng(latlng)
     .setContent('<div style="font-family:var(--sans);font-size:12.5px;color:#333;">주소 조회 중...</div>')
@@ -1521,7 +1552,11 @@ function initLeaflet(){
     if(moveModeId || addModeId) return;
     showAddressPopup(e.latlng);
   });
-  leafletMap.on('zoomend moveend', updateLabelVisibility);
+  let _labelRaf = null;
+  leafletMap.on('zoomend moveend', ()=>{
+    if(_labelRaf) cancelAnimationFrame(_labelRaf);
+    _labelRaf = requestAnimationFrame(updateLabelVisibility);
+  });
 
   leafletMap.on('locationfound', (e)=>{
     document.querySelectorAll('.gps-btn').forEach(b=>b.innerHTML='<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" width=\"15\" height=\"15\"><path d=\"M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z\"></path><circle cx=\"12\" cy=\"10\" r=\"3\"></circle></svg>');
@@ -1561,9 +1596,24 @@ document.getElementById('basemapToggle').addEventListener('click',(e)=>{
   setBasemap(b.dataset.b);
 });
 
+document.getElementById('layerToggle').addEventListener('click',(e)=>{
+  const b = e.target.closest('button');
+  if(!b || !leafletMap) return;
+  b.classList.toggle('active');
+  const on = b.classList.contains('active');
+  if(b.dataset.layer==='manhole'){
+    if(on) markerLayer.addTo(leafletMap); else leafletMap.removeLayer(markerLayer);
+  }else{
+    if(on) cpLayer.addTo(leafletMap); else leafletMap.removeLayer(cpLayer);
+  }
+});
+
+const _cpIconCache = {};
 function cpIcon(status){
+  const key = status==='망실' ? 'lost' : 'present';
+  if(_cpIconCache[key]) return _cpIconCache[key];
   const color = status==='망실' ? '#E5484D' : '#8B5CF6';
-  return L.divIcon({
+  const icon = L.divIcon({
     className:'',
     html:`<div style="filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));">
       <svg width="26" height="24" viewBox="0 0 26 24">
@@ -1573,16 +1623,41 @@ function cpIcon(status){
     </div>`,
     iconSize:[26,24], iconAnchor:[13,20]
   });
+  _cpIconCache[key] = icon;
+  return icon;
 }
+let cpMarkerIndex = {}; // name -> {marker, icon, tooltipClass}
 function renderControlPoints(){
   if(!cpLayer) return;
-  cpLayer.clearLayers();
+  const seen = new Set();
   (state.controlPoints||[]).forEach(cp=>{
     const ll = toLatLng(cp.x, cp.y);
     if(!ll) return;
-    const marker = L.marker(ll, {icon: cpIcon(cp.status)}).addTo(cpLayer);
-    marker.bindTooltip(cp.name, {permanent:true, direction:'top', offset:[0,-22], opacity:0.95, className:'cp-label'});
-    marker.on('click', ()=>selectControlPoint(cp.name));
+    seen.add(cp.name);
+    const icon = cpIcon(cp.status);
+    const tooltipClass = cp.status==='망실' ? 'cp-label cp-label-lost' : 'cp-label';
+    let entry = cpMarkerIndex[cp.name];
+    if(!entry){
+      const marker = L.marker(ll, {icon}).addTo(cpLayer);
+      marker.on('click', ()=>selectControlPoint(cp.name));
+      entry = { marker, icon:null, tooltipClass:null };
+      cpMarkerIndex[cp.name] = entry;
+    }else{
+      const cur = entry.marker.getLatLng();
+      if(cur.lat!==ll[0] || cur.lng!==ll[1]) entry.marker.setLatLng(ll);
+    }
+    if(entry.icon !== icon){ entry.marker.setIcon(icon); entry.icon = icon; }
+    if(entry.tooltipClass !== tooltipClass){
+      entry.marker.unbindTooltip();
+      entry.marker.bindTooltip(cp.name, {permanent:true, direction:'top', offset:[0,-22], opacity:0.95, className:tooltipClass});
+      entry.tooltipClass = tooltipClass;
+    }
+  });
+  Object.keys(cpMarkerIndex).forEach(name=>{
+    if(!seen.has(name)){
+      cpLayer.removeLayer(cpMarkerIndex[name].marker);
+      delete cpMarkerIndex[name];
+    }
   });
 }
 
@@ -1772,7 +1847,7 @@ function renderTable(){
     const sel = id===selectedId ? 'selected':'';
     return `<tr class="tbrow ${sel}" data-id="${id}">
       <td style="color:${STATUS_HEX[m.status]};font-weight:700;">●</td>
-      <td>${m.id}</td><td>${m.x}</td><td>${m.y}</td><td>${m.z}</td>
+      <td>${m.id}</td><td>${fmtCoord(m.x)}</td><td>${fmtCoord(m.y)}</td><td>${fmtCoord(m.z)}</td>
       <td>${m.status}</td><td>${m.lidar?'Y':'-'}</td>
       <td>${m.invert}</td><td>${m.ladder}</td><td>${m.fall}</td><td>${m.sensor||'없음'}</td>
       <td>${m.inspector||'-'}</td><td>${m.date||'-'}</td>
@@ -1821,7 +1896,7 @@ function renderDetailContent(panel){
     <div class="d-header">
       <div>
         <div class="d-title">${m.id}</div>
-        <div class="d-coords">X ${m.x}　Y ${m.y}</div>
+        <div class="d-coords">X ${fmtCoord(m.x)}　Y ${fmtCoord(m.y)}</div>
       </div>
       <button class="detail-close-btn" id="detailCloseBtn" title="닫기">✕</button>
     </div>
@@ -1914,6 +1989,7 @@ function renderAll(){
   renderDetail();
   renderCPList();
   renderInspectorList();
+  if(selectedCPName) renderCPDetail();
 }
 
 function ensureStateDefaults(){
