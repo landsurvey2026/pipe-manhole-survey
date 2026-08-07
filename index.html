@@ -433,7 +433,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v4.5 · 2026-08-06';
+const APP_VERSION = 'v4.6 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -649,6 +649,10 @@ function findColIdx(header, candidates, fallback){
 const listWrapEl = document.createElement('div');
 listWrapEl.id = 'listWrap';
 document.getElementById('statusListSlot').appendChild(listWrapEl);
+listWrapEl.addEventListener('click', (e)=>{
+  const row = e.target.closest('.mh-row');
+  if(row) selectManhole(row.dataset.id);
+});
 
 let activeMenu = null;
 const MENU_TITLES = {admin:'⚙ 관리자', search:'🔍 검색', status:'📊 현황', stats:'📈 통계'};
@@ -763,8 +767,7 @@ async function loadState(){
       if(raw){ state = JSON.parse(raw); }
     }catch(e){ /* no data yet */ }
   }
-  if(!state.controlPoints) state.controlPoints = [];
-  if(!state.inspectors) state.inspectors = [];
+  ensureStateDefaults();
   updateSyncBadge();
 
   // 공유 저장소가 비어있는데 이 기기(로컬)에는 이미 데이터가 있다면 최초 1회 자동으로 올려서 다른 기기와 공유되게 함
@@ -843,8 +846,10 @@ document.getElementById('cpFileInput').addEventListener('change', async (e)=>{
     const row = rows[i];
     if(!row || !row.length) continue;
     const name = String(row[nameIdx] ?? '').trim();
-    if(!name) continue;
-    parsed.push({name, x:parseFloat(row[xIdx]), y:parseFloat(row[yIdx]), z:parseFloat(row[zIdx]), status:'존재', lossReason:'', lossReasonNote:''});
+    if(!name || BAD_CP_NAMES.includes(name.toLowerCase())) continue;
+    const px = parseFloat(row[xIdx]), py = parseFloat(row[yIdx]);
+    if(!isFinite(px) || !isFinite(py)) continue;
+    parsed.push({name, x:px, y:py, z:parseFloat(row[zIdx]), status:'존재', lossReason:'', lossReasonNote:''});
   }
   if(!parsed.length){ showToast('인식된 기준점 데이터가 없습니다'); e.target.value=''; return; }
 
@@ -881,6 +886,7 @@ document.getElementById('cpFileInput').addEventListener('change', async (e)=>{
 });
 
 let cpSearchTerm = '';
+let _lastCPListSig = null;
 function renderCPList(){
   const list = document.getElementById('cpList');
   const cnt = document.getElementById('cpCount');
@@ -892,14 +898,19 @@ function renderCPList(){
   if(lostCnt) lostCnt.textContent = all.filter(cp=>cp.status==='망실').length;
   if(!all.length){
     list.innerHTML = '<div style="color:var(--text-dim);font-family:var(--sans);font-size:11.5px;">업로드된 기준점이 없습니다.</div>';
+    _lastCPListSig = null;
     return;
   }
   const term = cpSearchTerm.trim().toLowerCase();
   const filtered = term ? all.filter(cp=>cp.name.toLowerCase().includes(term)) : all;
   if(!filtered.length){
     list.innerHTML = '<div style="color:var(--text-dim);font-family:var(--sans);font-size:11.5px;">검색 결과가 없습니다.</div>';
+    _lastCPListSig = null;
     return;
   }
+  const sig = term+'|'+filtered.map(cp=>cp.name+cp.status+cp.lossReason+cp.lossReasonNote).join(';');
+  if(sig === _lastCPListSig) return;
+  _lastCPListSig = sig;
   list.innerHTML = filtered.map((cp)=>{
     const lost = cp.status==='망실';
     const i = all.indexOf(cp);
@@ -912,15 +923,16 @@ function renderCPList(){
       <div style="color:var(--text-dim);font-size:10.5px;margin-left:18px;">X:${fmtCoord(cp.x)} Y:${fmtCoord(cp.y)} Z:${fmtCoord(cp.z)}${lost && cp.lossReason ? ` · 사유: ${cp.lossReason==='기타'?(cp.lossReasonNote||'기타'):cp.lossReason}` : ''}</div>
     </div>`;
   }).join('');
-  list.querySelectorAll('.cp-row').forEach(r=>{
-    r.addEventListener('click', ()=>{
-      const cp = state.controlPoints[+r.dataset.i];
-      const ll = toLatLng(cp.x, cp.y);
-      if(ll && leafletMap){ switchToMapView(); leafletMap.setView(ll, 18); }
-      selectControlPoint(cp.name);
-    });
-  });
 }
+document.getElementById('cpList').addEventListener('click', (e)=>{
+  const row = e.target.closest('.cp-row');
+  if(!row) return;
+  const cp = state.controlPoints[+row.dataset.i];
+  if(!cp) return;
+  const ll = toLatLng(cp.x, cp.y);
+  if(ll && leafletMap){ switchToMapView(); leafletMap.setView(ll, 18); }
+  selectControlPoint(cp.name);
+});
 document.getElementById('cpSearchInput').addEventListener('input', (e)=>{
   cpSearchTerm = e.target.value;
   renderCPList();
@@ -1253,29 +1265,44 @@ function renderDashboard(){
 }
 
 /* ---------- render: left list ---------- */
+let _lastListSig = null;
 function renderList(){
   const wrap = document.getElementById('listWrap');
   const ids = getFilteredIds();
   if(!state.order.length){
     wrap.innerHTML = '<div class="empty-note">아직 업로드된 맨홀 데이터가 없습니다.<br>상단에서 엑셀 파일을 업로드하세요.</div>';
+    _lastListSig = null;
     return;
   }
   if(!ids.length){
     wrap.innerHTML = '<div class="empty-note">조건에 맞는 맨홀이 없습니다.</div>';
+    _lastListSig = null;
     return;
   }
-  wrap.innerHTML = ids.map(id=>{
-    const m = state.manholes[id];
-    const sel = id===selectedId ? 'selected':'';
-    return `<div class="mh-row ${sel}" data-id="${id}">
-      <span class="dot" style="background:${STATUS_COLORS[m.status]}"></span>
-      <span class="id">${m.id}</span>
-      <span class="st">${m.status}</span>
-    </div>`;
-  }).join('');
-  wrap.querySelectorAll('.mh-row').forEach(r=>{
-    r.addEventListener('click', ()=>{ selectManhole(r.dataset.id); });
-  });
+  const sig = ids.length+'|'+selectedId+'|'+ids.map(id=>{ const m=state.manholes[id]; return id+m.status; }).join(',');
+  if(sig === _lastListSig) return;
+  _lastListSig = sig;
+
+  wrap.innerHTML = '';
+  const CHUNK = 200;
+  let i = 0;
+  function step(){
+    let html = '';
+    const end = Math.min(i+CHUNK, ids.length);
+    for(; i<end; i++){
+      const id = ids[i];
+      const m = state.manholes[id];
+      const sel = id===selectedId ? 'selected':'';
+      html += `<div class="mh-row ${sel}" data-id="${id}">
+        <span class="dot" style="background:${STATUS_COLORS[m.status]}"></span>
+        <span class="id">${m.id}</span>
+        <span class="st">${m.status}</span>
+      </div>`;
+    }
+    wrap.insertAdjacentHTML('beforeend', html);
+    if(i < ids.length) requestAnimationFrame(step);
+  }
+  step();
 }
 
 /* ---------- render: center (map or table) — VWorld + Leaflet ---------- */
@@ -1835,31 +1862,55 @@ function renderMap(){
   }, 60);
 }
 
+let _lastTableSig = null;
 function renderTable(){
   const host = document.getElementById('tableHost');
   const ids = getFilteredIds();
   if(!ids.length){
     host.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-dim);font-size:13px;">표시할 데이터가 없습니다.</div>`;
+    _lastTableSig = null;
     return;
   }
-  const rowsHtml = ids.map(id=>{
+  const sig = ids.length+'|'+selectedId+'|'+ids.map(id=>{
     const m = state.manholes[id];
-    const sel = id===selectedId ? 'selected':'';
-    return `<tr class="tbrow ${sel}" data-id="${id}">
-      <td style="color:${STATUS_HEX[m.status]};font-weight:700;">●</td>
-      <td>${m.id}</td><td>${fmtCoord(m.x)}</td><td>${fmtCoord(m.y)}</td><td>${fmtCoord(m.z)}</td>
-      <td>${m.status}</td><td>${m.lidar?'Y':'-'}</td>
-      <td>${m.invert}</td><td>${m.ladder}</td><td>${m.fall}</td><td>${m.sensor||'없음'}</td>
-      <td>${m.inspector||'-'}</td><td>${m.date||'-'}</td>
-    </tr>`;
-  }).join('');
-  host.innerHTML = `<div class="table-wrap"><table>
-    <thead><tr><th></th><th>맨홀번호</th><th>X</th><th>Y</th><th>Z</th><th>상태</th><th>라이다</th><th>인버트</th><th>사다리</th><th>추락방지</th><th>계측센서</th><th>조사자</th><th>일자</th></tr></thead>
-    <tbody>${rowsHtml}</tbody>
-  </table></div>`;
-  host.querySelectorAll('.tbrow').forEach(r=>{
-    r.addEventListener('click', ()=>{ selectManhole(r.dataset.id); });
-  });
+    return id+m.status+m.lidar+m.invert+m.ladder+m.fall+m.sensor+m.inspector+m.date+m.x+m.y+m.z;
+  }).join(';');
+  if(sig === _lastTableSig) return;
+  _lastTableSig = sig;
+
+  if(!host.querySelector('table')){
+    host.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th></th><th>맨홀번호</th><th>X</th><th>Y</th><th>Z</th><th>상태</th><th>라이다</th><th>인버트</th><th>사다리</th><th>추락방지</th><th>계측센서</th><th>조사자</th><th>일자</th></tr></thead>
+      <tbody id="tableBody"></tbody>
+    </table></div>`;
+    host.querySelector('table').addEventListener('click', (e)=>{
+      const tr = e.target.closest('.tbrow');
+      if(tr) selectManhole(tr.dataset.id);
+    });
+  }
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  const CHUNK = 150;
+  let i = 0;
+  function step(){
+    let html = '';
+    const end = Math.min(i+CHUNK, ids.length);
+    for(; i<end; i++){
+      const id = ids[i];
+      const m = state.manholes[id];
+      const sel = id===selectedId ? 'selected':'';
+      html += `<tr class="tbrow ${sel}" data-id="${id}">
+        <td style="color:${STATUS_HEX[m.status]};font-weight:700;">●</td>
+        <td>${m.id}</td><td>${fmtCoord(m.x)}</td><td>${fmtCoord(m.y)}</td><td>${fmtCoord(m.z)}</td>
+        <td>${m.status}</td><td>${m.lidar?'Y':'-'}</td>
+        <td>${m.invert}</td><td>${m.ladder}</td><td>${m.fall}</td><td>${m.sensor||'없음'}</td>
+        <td>${m.inspector||'-'}</td><td>${m.date||'-'}</td>
+      </tr>`;
+    }
+    tbody.insertAdjacentHTML('beforeend', html);
+    if(i < ids.length) requestAnimationFrame(step);
+  }
+  step();
 }
 
 function renderCenter(){
@@ -1992,11 +2043,19 @@ function renderAll(){
   if(selectedCPName) renderCPDetail();
 }
 
+const BAD_CP_NAMES = ['기준점명','기준점','명칭','이름','name'];
 function ensureStateDefaults(){
   if(!state.controlPoints) state.controlPoints = [];
   if(!state.inspectors) state.inspectors = [];
   if(!state.order) state.order = [];
   if(!state.manholes) state.manholes = {};
+  // 엑셀 헤더 행이 데이터로 잘못 들어간 경우 등 유효하지 않은 기준점 정리
+  state.controlPoints = state.controlPoints.filter(cp=>{
+    if(!cp || !cp.name) return false;
+    if(BAD_CP_NAMES.includes(String(cp.name).trim().toLowerCase())) return false;
+    if(!isFinite(Number(cp.x)) || !isFinite(Number(cp.y))) return false;
+    return true;
+  });
 }
 
 /* ---------- 다른 사람/다른 기기와 실시간에 가깝게 동기화 ---------- */
