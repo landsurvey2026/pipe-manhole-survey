@@ -151,6 +151,8 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
 .leaflet-control-attribution{font-size:10px;color:var(--text-dim);background:rgba(255,255,255,0.85);}
 .mh-label{background:rgba(255,255,255,0.92);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--text);box-shadow:none;}
 .mh-label-big{font-size:21px;padding:3px 9px;border-radius:6px;border:2px solid var(--accent);background:#fff;color:var(--accent);font-weight:800;}
+.cp-label{background:#8B5CF6;border:1.5px solid #fff;border-radius:4px;padding:2px 7px;font-family:var(--mono);font-size:11px;font-weight:700;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.35);}
+.cp-label::before{border-top-color:#8B5CF6 !important;}
 .mh-label::before{border-top-color:rgba(255,255,255,0.92) !important;}
 .locate-btn{display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:linear-gradient(180deg,#fff,#F3F5F8);color:#3A4552;font-size:16px;text-decoration:none;cursor:pointer;transition:background .12s ease;}
 .locate-btn:hover{background:linear-gradient(180deg,#F7F9FC,#EBEEF2);}
@@ -381,7 +383,8 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
       <span><i class="dot" style="background:var(--st-none)"></i>미착수</span>
       <span><i class="dot" style="background:var(--st-progress)"></i>진행중</span>
       <span><i class="dot" style="background:var(--st-done)"></i>완료</span>
-      <span>▲ 기준점</span>
+      <span style="color:#8B5CF6;">▲ 기준점(존재)</span>
+      <span style="color:#E5484D;">▲ 기준점(망실)</span>
     </div>
   </div>
 </div>
@@ -389,6 +392,11 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 <div class="detail-backdrop" id="detailBackdrop"></div>
 <div class="detail-modal" id="detailModal">
   <div class="detail-panel" id="detailPanel"></div>
+</div>
+
+<div class="detail-backdrop" id="cpDetailBackdrop"></div>
+<div class="detail-modal" id="cpDetailModal" style="border-top-color:#8B5CF6;">
+  <div class="detail-panel" id="cpDetailPanel"></div>
 </div>
 
 <div class="add-backdrop" id="addBackdrop"></div>
@@ -415,7 +423,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v4.3 · 2026-08-06';
+const APP_VERSION = 'v4.4 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 /* 여러 사람이 실시간으로 데이터를 공유하려면 아래에 Firebase Realtime Database 주소를 넣으세요.
    예: 'https://landsurvey2026-xxxxx-default-rtdb.asia-southeast1.firebasedatabase.app'
@@ -470,6 +478,112 @@ async function deleteManhole(id){
   showToast(`'${id}' 맨홀이 삭제되었습니다`);
 }
 document.getElementById('detailBackdrop').addEventListener('click', closeDetailModal);
+
+/* ---------- 기준점 상세정보 (존재/망실 조사) ---------- */
+let selectedCPName = null;
+function openCPDetailModal(){
+  document.getElementById('cpDetailModal').classList.add('open');
+  document.getElementById('cpDetailBackdrop').classList.add('open');
+}
+function closeCPDetailModal(){
+  document.getElementById('cpDetailModal').classList.remove('open');
+  document.getElementById('cpDetailBackdrop').classList.remove('open');
+}
+function selectControlPoint(name){
+  selectedCPName = name;
+  closeMenuModal();
+  closeDetailModal();
+  renderCPDetail();
+  openCPDetailModal();
+}
+function deselectControlPoint(){
+  selectedCPName = null;
+  closeCPDetailModal();
+}
+async function deleteControlPoint(name){
+  const idx = state.controlPoints.findIndex(cp=>cp.name===name);
+  if(idx<0) return;
+  if(!confirm(`'${name}' 기준점을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+  state.controlPoints.splice(idx,1);
+  if(selectedCPName===name) selectedCPName = null;
+  closeCPDetailModal();
+  await saveState();
+  renderAll();
+  showToast(`'${name}' 기준점이 삭제되었습니다`);
+}
+function renderCPDetail(){
+  const panel = document.getElementById('cpDetailPanel');
+  const cp = state.controlPoints.find(c=>c.name===selectedCPName);
+  if(!cp){ panel.innerHTML = ''; return; }
+  const reasonOptions = ['포장','파손','기타'].map(v=>`<option value="${v}" ${cp.lossReason===v?'selected':''}>${v}</option>`).join('');
+  const showReason = cp.status==='망실';
+  panel.innerHTML = `
+    <div class="d-header">
+      <div>
+        <div class="d-title">▲ ${cp.name}</div>
+        <div class="d-coords">X ${cp.x}　Y ${cp.y}　Z ${cp.z}</div>
+      </div>
+      <button class="detail-close-btn" id="cpDetailCloseBtn" title="닫기">✕</button>
+    </div>
+
+    <div class="field">
+      <label>상태</label>
+      <select id="cp-status">
+        <option value="존재" ${cp.status!=='망실'?'selected':''}>존재</option>
+        <option value="망실" ${cp.status==='망실'?'selected':''}>망실</option>
+      </select>
+    </div>
+
+    <div id="cp-reason-wrap" style="display:${showReason?'block':'none'};">
+      <div class="field">
+        <label>망실사유</label>
+        <select id="cp-reason">
+          <option value="">선택 안함</option>
+          ${reasonOptions}
+        </select>
+      </div>
+      <div class="field" id="cp-reason-note-wrap" style="display:${cp.lossReason==='기타'?'block':'none'};">
+        <label>기타 사유 입력</label>
+        <input type="text" id="cp-reason-note" value="${cp.lossReasonNote||''}" placeholder="사유를 입력해주세요">
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button id="cpDetailBottomClose" style="flex:1;background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);border-radius:7px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;">닫기</button>
+      <button id="cpDetailDeleteBtn" style="flex:1;background:rgba(211,47,47,0.1);border:1px solid var(--st-bad);color:var(--st-bad);border-radius:7px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;">삭제</button>
+    </div>
+  `;
+  document.getElementById('cpDetailCloseBtn').addEventListener('click', deselectControlPoint);
+  document.getElementById('cpDetailBottomClose').addEventListener('click', deselectControlPoint);
+  document.getElementById('cpDetailDeleteBtn').addEventListener('click', ()=>deleteControlPoint(cp.name));
+
+  document.getElementById('cp-status').addEventListener('change', async (e)=>{
+    cp.status = e.target.value;
+    if(cp.status!=='망실'){ cp.lossReason=''; cp.lossReasonNote=''; }
+    await saveState();
+    renderCPDetail();
+    renderCenter();
+    showToast('저장됨');
+  });
+  const reasonSelect = document.getElementById('cp-reason');
+  if(reasonSelect){
+    reasonSelect.addEventListener('change', async (e)=>{
+      cp.lossReason = e.target.value;
+      if(cp.lossReason!=='기타') cp.lossReasonNote = '';
+      await saveState();
+      renderCPDetail();
+      showToast('저장됨');
+    });
+  }
+  const reasonNote = document.getElementById('cp-reason-note');
+  if(reasonNote){
+    reasonNote.addEventListener('input', async (e)=>{
+      cp.lossReasonNote = e.target.value;
+      await saveState();
+    });
+  }
+}
+document.getElementById('cpDetailBackdrop').addEventListener('click', closeCPDetailModal);
 
 function setMobileTab(tab){
   mobileTab = tab;
@@ -716,7 +830,7 @@ document.getElementById('cpFileInput').addEventListener('change', async (e)=>{
     if(!row || !row.length) continue;
     const name = String(row[nameIdx] ?? '').trim();
     if(!name) continue;
-    parsed.push({name, x:parseFloat(row[xIdx]), y:parseFloat(row[yIdx]), z:parseFloat(row[zIdx])});
+    parsed.push({name, x:parseFloat(row[xIdx]), y:parseFloat(row[yIdx]), z:parseFloat(row[zIdx]), status:'존재', lossReason:'', lossReasonNote:''});
   }
   if(!parsed.length){ showToast('인식된 기준점 데이터가 없습니다'); e.target.value=''; return; }
 
@@ -730,8 +844,12 @@ document.getElementById('cpFileInput').addEventListener('change', async (e)=>{
     await saveState();
     showToast(`기준점 ${removed}건 삭제됨`);
   }else if(cpUploadMode==='replace'){
-    if(!confirm(`기존 기준점을 모두 지우고 엑셀 내용(${parsed.length}건)으로 전체 교체할까요?`)){ e.target.value=''; return; }
-    state.controlPoints = parsed;
+    if(!confirm(`기존 기준점을 모두 지우고 엑셀 내용(${parsed.length}건)으로 전체 교체할까요?\n(같은 이름은 기존 존재/망실 상태를 유지합니다)`)){ e.target.value=''; return; }
+    const merged = parsed.map(r=>{
+      const existing = state.controlPoints.find(cp=>cp.name===r.name);
+      return existing ? {...r, status:existing.status||'존재', lossReason:existing.lossReason||'', lossReasonNote:existing.lossReasonNote||''} : r;
+    });
+    state.controlPoints = merged;
     await saveState();
     showToast(`기준점 전체교체 완료 · ${parsed.length}건`);
   }else{
@@ -756,16 +874,23 @@ function renderCPList(){
     list.innerHTML = '<div style="color:var(--text-dim);font-family:var(--sans);font-size:11.5px;">업로드된 기준점이 없습니다.</div>';
     return;
   }
-  list.innerHTML = state.controlPoints.map((cp,i)=>`
-    <div class="cp-row" data-i="${i}" style="padding:5px 0;border-bottom:1px solid var(--border);cursor:pointer;">
-      <div style="font-weight:600;color:var(--text);">▲ ${cp.name}</div>
-      <div style="color:var(--text-dim);font-size:10.5px;">X:${cp.x} Y:${cp.y} Z:${cp.z}</div>
-    </div>`).join('');
+  list.innerHTML = state.controlPoints.map((cp,i)=>{
+    const lost = cp.status==='망실';
+    return `<div class="cp-row" data-i="${i}" style="padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="color:${lost?'#E5484D':'#8B5CF6'};font-weight:700;">▲</span>
+        <span style="font-weight:600;color:var(--text);">${cp.name}</span>
+        <span style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:${lost?'rgba(229,72,77,0.12)':'rgba(139,92,246,0.12)'};color:${lost?'#E5484D':'#8B5CF6'};">${lost?'망실':'존재'}</span>
+      </div>
+      <div style="color:var(--text-dim);font-size:10.5px;margin-left:18px;">X:${cp.x} Y:${cp.y} Z:${cp.z}${lost && cp.lossReason ? ` · 사유: ${cp.lossReason==='기타'?(cp.lossReasonNote||'기타'):cp.lossReason}` : ''}</div>
+    </div>`;
+  }).join('');
   list.querySelectorAll('.cp-row').forEach(r=>{
     r.addEventListener('click', ()=>{
       const cp = state.controlPoints[+r.dataset.i];
       const ll = toLatLng(cp.x, cp.y);
-      if(ll && leafletMap){ leafletMap.setView(ll, 18); }
+      if(ll && leafletMap){ switchToMapView(); leafletMap.setView(ll, 18); }
+      selectControlPoint(cp.name);
     });
   });
 }
@@ -1436,20 +1561,28 @@ document.getElementById('basemapToggle').addEventListener('click',(e)=>{
   setBasemap(b.dataset.b);
 });
 
+function cpIcon(status){
+  const color = status==='망실' ? '#E5484D' : '#8B5CF6';
+  return L.divIcon({
+    className:'',
+    html:`<div style="filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));">
+      <svg width="26" height="24" viewBox="0 0 26 24">
+        <polygon points="13,1 25,22 1,22" fill="${color}" stroke="#fff" stroke-width="2.2"/>
+        <text x="13" y="18" text-anchor="middle" font-size="11" font-weight="800" fill="#fff" font-family="sans-serif">▲</text>
+      </svg>
+    </div>`,
+    iconSize:[26,24], iconAnchor:[13,20]
+  });
+}
 function renderControlPoints(){
   if(!cpLayer) return;
   cpLayer.clearLayers();
   (state.controlPoints||[]).forEach(cp=>{
     const ll = toLatLng(cp.x, cp.y);
     if(!ll) return;
-    const icon = L.divIcon({
-      className:'',
-      html:`<div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:14px solid #E8A33D;filter:drop-shadow(0 1px 1px rgba(0,0,0,.4));"></div>`,
-      iconSize:[16,14], iconAnchor:[8,10]
-    });
-    const marker = L.marker(ll, {icon}).addTo(cpLayer);
-    marker.bindTooltip(cp.name, {direction:'top', offset:[0,-10]});
-    marker.bindPopup(`<div style="font-family:var(--mono);font-size:12px;"><b>${cp.name}</b><br>X(N): ${cp.x}<br>Y(E): ${cp.y}<br>Z(표고): ${cp.z}</div>`);
+    const marker = L.marker(ll, {icon: cpIcon(cp.status)}).addTo(cpLayer);
+    marker.bindTooltip(cp.name, {permanent:true, direction:'top', offset:[0,-22], opacity:0.95, className:'cp-label'});
+    marker.on('click', ()=>selectControlPoint(cp.name));
   });
 }
 
