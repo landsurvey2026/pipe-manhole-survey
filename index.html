@@ -137,16 +137,17 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
 
 /* center map */
 .center-panel{position:relative;background:var(--bg);}
-.view-toggle{position:absolute;top:12px;left:12px;z-index:410;display:flex;gap:6px;background:rgba(18,26,32,0.85);padding:4px;border-radius:8px;border:1px solid var(--border);backdrop-filter:blur(4px);}
-.view-toggle button{background:transparent;border:none;color:var(--text-dim);font-size:12px;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:var(--sans);}
-.view-toggle button.active{background:var(--accent);color:#fff;font-weight:700;}
+.map-toolbar{position:absolute;top:10px;left:10px;right:10px;z-index:410;display:flex;flex-wrap:wrap;gap:6px;pointer-events:none;}
+.mt-group{display:flex;gap:4px;background:rgba(18,26,32,0.85);padding:4px;border-radius:8px;border:1px solid var(--border);backdrop-filter:blur(4px);pointer-events:auto;}
+.mt-group button{background:transparent;border:none;color:var(--text-dim);font-size:11.5px;padding:6px 9px;border-radius:6px;cursor:pointer;font-family:var(--sans);white-space:nowrap;}
+.mt-group button.active{background:var(--accent);color:#fff;font-weight:700;}
 .map-svg{width:100%;height:100%;display:block;}
 .legend{position:absolute;bottom:10px;left:12px;z-index:410;display:flex;gap:12px;background:rgba(18,26,32,0.85);padding:7px 12px;border-radius:8px;border:1px solid var(--border);font-size:10.5px;color:var(--text-dim);}
-.dayview-bar{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:415;background:rgba(11,99,206,0.95);color:#fff;padding:8px 10px 8px 16px;border-radius:20px;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:10px;box-shadow:0 4px 14px rgba(0,0,0,0.25);white-space:nowrap;}
+.dayview-bar{position:absolute;top:56px;left:50%;transform:translateX(-50%);z-index:415;background:rgba(11,99,206,0.95);color:#fff;padding:8px 10px 8px 16px;border-radius:20px;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:10px;box-shadow:0 4px 14px rgba(0,0,0,0.25);white-space:nowrap;}
 .dayview-bar button{background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:14px;padding:5px 13px;font-size:11.5px;cursor:pointer;font-weight:700;}
 .dayview-bar button:hover{background:rgba(255,255,255,0.32);}
 @media (max-width:860px){
-  .dayview-bar{top:8px;font-size:11px;padding:6px 8px 6px 12px;max-width:92vw;}
+  .dayview-bar{top:44px;font-size:11px;padding:6px 8px 6px 12px;max-width:92vw;}
 }
 .leaflet-control-attribution{font-size:10px;color:var(--text-dim);background:rgba(255,255,255,0.85);}
 .mh-label{background:rgba(255,255,255,0.92);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--text);box-shadow:none;}
@@ -156,6 +157,7 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
 .cp-label-lost{background:#E5484D;}
 .cp-label-lost::before{border-top-color:#E5484D !important;}
 .mh-label::before{border-top-color:rgba(255,255,255,0.92) !important;}
+.leaflet-top.leaflet-right{top:56px !important;}
 .locate-btn{display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:linear-gradient(180deg,#fff,#F3F5F8);color:#3A4552;font-size:16px;text-decoration:none;cursor:pointer;transition:background .12s ease;}
 .locate-btn:hover{background:linear-gradient(180deg,#F7F9FC,#EBEEF2);}
 .spin-icon{animation:spin 0.9s linear infinite;}
@@ -218,11 +220,11 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
   .top-toolbar button{padding:6px 10px;font-size:11.5px;}
 
   .menu-modal .list-wrap{flex:1;}
-  .view-toggle{top:8px;left:8px;}
-  #basemapToggle{top:44px;}
-  #layerToggle{top:80px;}
+  .map-toolbar{top:6px;left:6px;right:6px;gap:5px;}
+  .mt-group{padding:3px;}
+  .mt-group button{padding:5px 7px;font-size:10.5px;}
   .legend{bottom:8px;left:8px;flex-wrap:wrap;max-width:60%;font-size:9.5px;gap:6px;}
-  .leaflet-top.leaflet-left{top:122px;}
+  .leaflet-top.leaflet-right{top:96px !important;}
 }
 .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
 
@@ -371,17 +373,19 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <div class="main">
   <div class="panel center-panel">
-    <div class="view-toggle">
-      <button class="active" data-v="map">지도</button>
-      <button data-v="table">표</button>
-    </div>
-    <div class="view-toggle" id="basemapToggle" style="top:54px;">
-      <button class="active" data-b="map">일반지도</button>
-      <button data-b="sat">위성영상</button>
-    </div>
-    <div class="view-toggle" id="layerToggle" style="top:96px;">
-      <button class="active" data-layer="manhole">● 맨홀</button>
-      <button class="active" data-layer="cp">▲ 기준점</button>
+    <div class="map-toolbar" id="mapToolbar">
+      <div class="mt-group" id="viewModeToggle">
+        <button class="active" data-v="map">지도</button>
+        <button data-v="table">표</button>
+      </div>
+      <div class="mt-group" id="basemapToggle">
+        <button class="active" data-b="map">일반지도</button>
+        <button data-b="sat">위성영상</button>
+      </div>
+      <div class="mt-group" id="layerToggle">
+        <button class="active" data-layer="manhole">● 맨홀</button>
+        <button class="active" data-layer="cp">▲ 기준점</button>
+      </div>
     </div>
     <div id="mapHost" style="width:100%;height:100%;"></div>
     <div id="tableHost" style="width:100%;height:100%;display:none;"></div>
@@ -433,7 +437,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v4.6 · 2026-08-06';
+const APP_VERSION = 'v4.7 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -1224,7 +1228,7 @@ function switchToMapView(){
   document.getElementById('mapHost').style.display = 'block';
   document.getElementById('tableHost').style.display = 'none';
 }
-document.querySelector('.view-toggle').addEventListener('click',(e)=>{
+document.getElementById('viewModeToggle').addEventListener('click',(e)=>{
   const b = e.target.closest('button');
   if(!b) return;
   viewMode = b.dataset.v;
@@ -1565,7 +1569,7 @@ function initLeaflet(){
     maxZoom:21,
     attributionControl:false
   }).setView([37.5665,126.9780], 12);
-  const cornerPos = window.innerWidth <= 860 ? 'topleft' : 'topright';
+  const cornerPos = 'topright';
   L.control.zoom({position:cornerPos}).addTo(leafletMap);
   leafletMap.addControl(new LocateControl({position:cornerPos}));
   leafletMap.addControl(new AddManholeControl({position:cornerPos}));
@@ -1693,41 +1697,21 @@ const _iconCache = {};
 function manholeIcon(color, isSel, isActive, big){
   const key = color+'|'+(isSel?1:0)+'|'+(isActive?1:0)+'|'+(big?1:0);
   if(_iconCache[key]) return _iconCache[key];
-  let size = isSel ? 32 : 25;
+  let size = isSel ? 22 : 17;
   if(big) size = size * 2;
   const op = isActive ? 1 : 0.3;
-  const ring = isSel ? '#0B63CE' : '#1A1D20';
-  const ringW = isSel ? 2.6 : 1.4;
-  const safeKey = key.replace(/[^a-zA-Z0-9]/g,'');
-  const gid = 'rim_'+safeKey;
-  const gid2 = 'sheen_'+safeKey;
+  const ring = isSel ? '#0B63CE' : '#2B2E31';
+  const ringW = isSel ? 2.2 : 1.2;
   const icon = L.divIcon({
     className:'',
-    html:`<div style="opacity:${op};filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5))${isSel?' drop-shadow(0 0 6px rgba(11,99,206,0.85))':''};">
+    html:`<div style="opacity:${op};filter:drop-shadow(0 1px 2px rgba(0,0,0,0.45))${isSel?' drop-shadow(0 0 5px rgba(11,99,206,0.85))':''};">
       <svg width="${size}" height="${size}" viewBox="0 0 26 26">
-        <defs>
-          <radialGradient id="${gid}" cx="35%" cy="30%" r="75%">
-            <stop offset="0%" stop-color="#82898F"/>
-            <stop offset="55%" stop-color="#5A6066"/>
-            <stop offset="100%" stop-color="#33373B"/>
-          </radialGradient>
-          <radialGradient id="${gid2}" cx="35%" cy="28%" r="65%">
-            <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.55"/>
-            <stop offset="45%" stop-color="#FFFFFF" stop-opacity="0.08"/>
-            <stop offset="100%" stop-color="#000000" stop-opacity="0.12"/>
-          </radialGradient>
-        </defs>
-        <circle cx="13" cy="13" r="12" fill="url(#${gid})" stroke="${ring}" stroke-width="${ringW}"/>
-        <circle cx="13" cy="13" r="10.2" fill="#F4F6F8"/>
+        <circle cx="13" cy="13" r="12" fill="#585C60" stroke="${ring}" stroke-width="${ringW}"/>
         <circle cx="13" cy="13" r="9" fill="${color}" stroke="#1A1C1E" stroke-width="1"/>
-        <g stroke="rgba(0,0,0,0.38)" stroke-width="1">
-          <line x1="13" y1="4.6" x2="13" y2="21.4"/>
-          <line x1="4.6" y1="13" x2="21.4" y2="13"/>
-          <line x1="6.9" y1="6.9" x2="19.1" y2="19.1"/>
-          <line x1="19.1" y1="6.9" x2="6.9" y2="19.1"/>
+        <g stroke="rgba(0,0,0,0.35)" stroke-width="1">
+          <line x1="13" y1="5" x2="13" y2="21"/>
+          <line x1="5" y1="13" x2="21" y2="13"/>
         </g>
-        <circle cx="13" cy="13" r="9" fill="url(#${gid2})" stroke="rgba(0,0,0,0.32)" stroke-width="1"/>
-        <circle cx="13" cy="13" r="3" fill="none" stroke="rgba(0,0,0,0.35)" stroke-width="0.8"/>
       </svg>
     </div>`,
     iconSize:[size,size],
@@ -1793,7 +1777,11 @@ function renderMap(){
 
   const seenIds = new Set();
   markerRefs = [];
-  state.order.forEach(id=>{
+  const orderList = state.order;
+  const CHUNK = 200;
+  let idx = 0;
+
+  function processOne(id){
     const m = state.manholes[id];
     if(!m) return;
     const ll = toLatLng(m.x, m.y);
@@ -1834,7 +1822,7 @@ function renderMap(){
       entry.marker.unbindTooltip();
       entry.marker.bindTooltip(tooltipText, {
         permanent:true, direction:'top',
-        offset: isDayMember ? [0,-26] : [0,-14],
+        offset: isDayMember ? [0,-22] : [0,-11],
         opacity: isDayMember ? 0.95 : 0.9,
         className: tooltipClass
       });
@@ -1842,24 +1830,36 @@ function renderMap(){
       entry.tooltipClass = tooltipClass;
     }
     markerRefs.push({id, marker: entry.marker, isDayMember});
-  });
-
-  // 더 이상 존재하지 않는 맨홀의 마커는 지도에서 제거
-  Object.keys(markerIndex).forEach(id=>{
-    if(!seenIds.has(id)){
-      markerLayer.removeLayer(markerIndex[id].marker);
-      delete markerIndex[id];
-    }
-  });
-
-  if(boundsPts.length && !hasFitBounds){
-    leafletMap.fitBounds(L.latLngBounds(boundsPts), {padding:[50,50]});
-    hasFitBounds = true;
   }
-  setTimeout(()=>{
-    if(leafletMap) leafletMap.invalidateSize();
-    updateLabelVisibility();
-  }, 60);
+
+  function finish(){
+    // 더 이상 존재하지 않는 맨홀의 마커는 지도에서 제거
+    Object.keys(markerIndex).forEach(id=>{
+      if(!seenIds.has(id)){
+        markerLayer.removeLayer(markerIndex[id].marker);
+        delete markerIndex[id];
+      }
+    });
+    if(boundsPts.length && !hasFitBounds){
+      leafletMap.fitBounds(L.latLngBounds(boundsPts), {padding:[50,50]});
+      hasFitBounds = true;
+    }
+    setTimeout(()=>{
+      if(leafletMap) leafletMap.invalidateSize();
+      updateLabelVisibility();
+    }, 60);
+  }
+
+  function step(){
+    const end = Math.min(idx+CHUNK, orderList.length);
+    for(; idx<end; idx++){ processOne(orderList[idx]); }
+    if(idx < orderList.length){
+      requestAnimationFrame(step);
+    }else{
+      finish();
+    }
+  }
+  step();
 }
 
 let _lastTableSig = null;
