@@ -301,6 +301,11 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
         <button id="clearAllCPBtn" style="width:100%;margin-top:8px;background:rgba(211,47,47,0.08);border:1px solid var(--st-bad);color:var(--st-bad);border-radius:7px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">🗑 전체 기준점 삭제 (엑셀 없이)</button>
       </div>
       <div class="side-section">
+        <div style="font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:8px;">엑셀 내보내기</div>
+        <div style="font-size:10.5px;color:var(--text-dim);margin-bottom:8px;line-height:1.4;">맨홀 조사현황 + 기준점 현황(망실조사 포함)을 시트 2개로 묶어 저장합니다.</div>
+        <button id="exportExcelBtn" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:7px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;">📊 엑셀로 내보내기 (저장 위치 지정)</button>
+      </div>
+      <div class="side-section">
         <div style="font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:8px;">조사자 관리</div>
         <div style="display:flex;gap:6px;margin-bottom:10px;">
           <input type="text" id="inspectorNameInput" placeholder="이름 입력" style="flex:1;background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:6px;font-size:12.5px;">
@@ -437,7 +442,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v4.7 · 2026-08-06';
+const APP_VERSION = 'v4.8 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -464,7 +469,19 @@ function closeDetailModal(){
   document.getElementById('detailModal').classList.remove('open');
   document.getElementById('detailBackdrop').classList.remove('open');
 }
+function refreshMarkerAppearance(id){
+  if(!id) return;
+  const entry = markerIndex[id];
+  const m = state.manholes[id];
+  if(!entry || !m) return;
+  const isActive = new Set(getFilteredIds()).has(id);
+  const isSel = id===selectedId;
+  const color = STATUS_HEX[m.status] || STATUS_HEX['미착수'];
+  const icon = manholeIcon(color, isSel, dayViewDate ? false : isActive, false);
+  if(entry.icon !== icon){ entry.marker.setIcon(icon); entry.icon = icon; }
+}
 function selectManhole(id){
+  const prevId = selectedId;
   selectedId = id;
   closeMenuModal();
   const m = state.manholes[id];
@@ -473,16 +490,24 @@ function selectManhole(id){
     if(ll){
       switchToMapView();
       initLeaflet();
-      leafletMap.setView(ll, Math.max(leafletMap.getZoom() || 0, 17));
+      leafletMap.setView(ll, Math.max(leafletMap.getZoom() || 0, 17), {animate:false});
     }
   }
-  renderAll();
+  refreshMarkerAppearance(prevId);
+  refreshMarkerAppearance(id);
+  renderDashboard();
+  renderList();
+  renderDetail();
   openDetailModal();
 }
 function deselectManhole(){
+  const prevId = selectedId;
   selectedId = null;
   closeDetailModal();
-  renderAll();
+  refreshMarkerAppearance(prevId);
+  renderDashboard();
+  renderList();
+  renderDetail();
 }
 async function deleteManhole(id){
   if(!state.manholes[id]) return;
@@ -1130,6 +1155,66 @@ document.getElementById('clearAllCPBtn').addEventListener('click', async ()=>{
   await saveState();
   renderAll();
   showToast(`기준점 ${cnt}개 전체 삭제됨`);
+});
+
+/* ---------- 엑셀 내보내기 (맨홀 조사현황 + 기준점 현황, 저장 위치 지정) ---------- */
+document.getElementById('exportExcelBtn').addEventListener('click', async ()=>{
+  if(!state.order.length && !state.controlPoints.length){
+    showToast('내보낼 데이터가 없습니다');
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+
+  const mhRows = state.order.map(id=>{
+    const m = state.manholes[id];
+    if(!m) return null;
+    return {
+      '맨홀번호': m.id, 'X': m.x, 'Y': m.y, 'Z': m.z,
+      '진행상태': m.status, '라이다촬영': m.lidar ? 'Y' : 'N',
+      '인버트': m.invert, '사다리': m.ladder, '추락방지시설': m.fall, '계측센서': m.sensor,
+      '조사자': m.inspector || '', '조사일자': m.date || '', '비고': m.note || ''
+    };
+  }).filter(Boolean);
+  const mhSheet = XLSX.utils.json_to_sheet(mhRows);
+  XLSX.utils.book_append_sheet(wb, mhSheet, '맨홀조사현황');
+
+  const cpRows = state.controlPoints.map(cp=>({
+    '기준점명': cp.name, 'X': cp.x, 'Y': cp.y, 'Z': cp.z,
+    '상태': cp.status || '존재',
+    '망실사유': cp.status==='망실' ? (cp.lossReason==='기타' ? (cp.lossReasonNote || '기타') : (cp.lossReason || '')) : ''
+  }));
+  const cpSheet = XLSX.utils.json_to_sheet(cpRows);
+  XLSX.utils.book_append_sheet(wb, cpSheet, '기준점현황');
+
+  const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  const blob = new Blob([wbout], {type:'application/octet-stream'});
+  const filename = `원형관로_조사현황_${new Date().toISOString().slice(0,10)}.xlsx`;
+
+  if(window.showSaveFilePicker){
+    try{
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description:'Excel 파일', accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx']} }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      showToast('엑셀 파일이 저장되었습니다');
+      return;
+    }catch(e){
+      if(e && e.name==='AbortError') return; // 사용자가 저장 취소
+      console.error('showSaveFilePicker failed, falling back to download:', e);
+    }
+  }
+  // 저장 위치 선택을 지원하지 않는 브라우저(사파리 등)는 일반 다운로드로 대체
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showToast('엑셀 파일이 다운로드되었습니다');
 });
 
 document.getElementById('fileInput').addEventListener('change', async (e)=>{
@@ -1955,15 +2040,6 @@ function renderDetailContent(panel){
     <button id="moveLocationBtn" style="width:100%;margin-bottom:14px;background:var(--panel-2);border:1px dashed var(--border);color:var(--text);border-radius:7px;padding:9px;font-size:12.5px;font-weight:600;cursor:pointer;">📍 위치 이동</button>
 
     <div class="field">
-      <label>진행상태</label>
-      <select id="f-status" class="status-select">
-        <option value="미착수" ${m.status==='미착수'?'selected':''}>미착수</option>
-        <option value="진행중" ${m.status==='진행중'?'selected':''}>진행중</option>
-        <option value="완료" ${m.status==='완료'?'selected':''}>완료</option>
-      </select>
-    </div>
-
-    <div class="field">
       <div class="check-row"><input type="checkbox" id="f-lidar" ${m.lidar?'checked':''}><label style="margin:0;color:var(--text);font-size:12.5px;">라이다 촬영 완료</label></div>
     </div>
 
@@ -1997,6 +2073,14 @@ function renderDetailContent(panel){
       <input type="date" id="f-date" value="${m.date||''}">
     </div>
     <div class="field">
+      <label>진행상태</label>
+      <select id="f-status" class="status-select">
+        <option value="미착수" ${m.status==='미착수'?'selected':''}>미착수</option>
+        <option value="진행중" ${m.status==='진행중'?'selected':''}>진행중</option>
+        <option value="완료" ${m.status==='완료'?'selected':''}>완료</option>
+      </select>
+    </div>
+    <div class="field">
       <label>비고</label>
       <textarea id="f-note" placeholder="특이사항 입력">${m.note||''}</textarea>
     </div>
@@ -2018,7 +2102,8 @@ function renderDetailContent(panel){
       const v = el.type==='checkbox' ? el.checked : el.value;
       state.manholes[selectedId][prop] = v;
       await saveState();
-      renderDashboard(); renderList(); renderCenter();
+      renderDashboard(); renderList();
+      refreshMarkerAppearance(selectedId);
       showToast('저장됨');
     });
   };
