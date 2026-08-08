@@ -7,10 +7,10 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>원형관로 조사 현황</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js" defer></script>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -442,7 +442,8 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v4.8 · 2026-08-06';
+document.addEventListener('DOMContentLoaded', function(){
+const APP_VERSION = 'v4.9 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -1743,9 +1744,11 @@ function cpIcon(status){
   return icon;
 }
 let cpMarkerIndex = {}; // name -> {marker, icon, tooltipClass}
+let cpMarkerRefs = [];
 function renderControlPoints(){
   if(!cpLayer) return;
   const seen = new Set();
+  cpMarkerRefs = [];
   (state.controlPoints||[]).forEach(cp=>{
     const ll = toLatLng(cp.x, cp.y);
     if(!ll) return;
@@ -1768,6 +1771,7 @@ function renderControlPoints(){
       entry.marker.bindTooltip(cp.name, {permanent:true, direction:'top', offset:[0,-22], opacity:0.95, className:tooltipClass});
       entry.tooltipClass = tooltipClass;
     }
+    cpMarkerRefs.push({ marker: entry.marker });
   });
   Object.keys(cpMarkerIndex).forEach(name=>{
     if(!seen.has(name)){
@@ -1824,11 +1828,25 @@ function updateLabelVisibility(){
   const rest = markerRefs.filter(r=>!r.isDayMember);
   if(zoom < LABEL_MIN_ZOOM){
     rest.forEach(r=>r.marker.closeTooltip());
+    cpMarkerRefs.forEach(r=>r.marker.closeTooltip());
     return;
   }
   // 화면(뷰포트)에 보이는 마커만 라벨 계산 대상으로 삼아 대량 데이터에서도 가볍게 처리
   const bounds = leafletMap.getBounds().pad(0.15);
   rest.forEach(r=>{
+    const ll = r.marker.getLatLng();
+    if(!bounds.contains(ll)){ r.marker.closeTooltip(); return; }
+    const pt = leafletMap.latLngToContainerPoint(ll);
+    const collide = shown.some(p => Math.abs(p.x-pt.x) < MIN_DIST && Math.abs(p.y-pt.y) < MIN_DIST);
+    if(collide){
+      r.marker.closeTooltip();
+    }else{
+      r.marker.openTooltip();
+      shown.push(pt);
+    }
+  });
+  // 기준점 라벨도 같은 방식(줌/뷰포트/겹침)으로 표시
+  cpMarkerRefs.forEach(r=>{
     const ll = r.marker.getLatLng();
     if(!bounds.contains(ll)){ r.marker.closeTooltip(); return; }
     const pt = leafletMap.latLngToContainerPoint(ll);
@@ -2187,6 +2205,7 @@ window.addEventListener('resize', ()=>{ renderCenter(); });
   setMobileTab('map');
   showStatusSub('manhole');
 })();
+}); // DOMContentLoaded 끝
 </script>
 </body>
 </html>
