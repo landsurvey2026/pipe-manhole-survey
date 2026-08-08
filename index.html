@@ -127,13 +127,14 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
 .inspector-row{display:flex;align-items:center;justify-content:space-between;background:var(--panel-2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:12.5px;color:var(--text);}
 .inspector-row button{background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 4px;}
 .inspector-row button:hover{color:var(--st-bad);}
-.mh-row{padding:9px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;}
-.mh-row:hover{background:var(--panel-2);}
-.mh-row.selected{background:rgba(11,99,206,0.08);border-left:3px solid var(--accent);}
-.dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
-.mh-row .id{font-family:var(--mono);font-weight:600;}
-.mh-row .st{margin-left:auto;font-size:10.5px;color:var(--text-dim);}
-.empty-note{padding:20px 14px;color:var(--text-dim);font-size:12px;text-align:center;line-height:1.6;}
+.list-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px;}
+.mh-card{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:8px 9px;cursor:pointer;min-width:0;transition:border-color .1s ease, background .1s ease;}
+.mh-card:hover{border-color:var(--accent);}
+.mh-card.selected{border-color:var(--accent);background:rgba(11,99,206,0.1);}
+.mh-card .mh-id{font-family:var(--mono);font-weight:700;font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;}
+.mh-card .mh-status-row{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-dim);margin-top:4px;}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.empty-note{padding:20px 14px;color:var(--text-dim);font-size:12px;text-align:center;line-height:1.6;grid-column:1 / -1;}
 
 /* center map */
 .center-panel{position:relative;background:var(--bg);}
@@ -464,7 +465,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v5.0 · 2026-08-06';
+const APP_VERSION = 'v5.1 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -701,7 +702,7 @@ const listWrapEl = document.createElement('div');
 listWrapEl.id = 'listWrap';
 document.getElementById('statusListSlot').appendChild(listWrapEl);
 listWrapEl.addEventListener('click', (e)=>{
-  const row = e.target.closest('.mh-row');
+  const row = e.target.closest('.mh-card');
   if(row) selectManhole(row.dataset.id);
 });
 
@@ -711,7 +712,7 @@ cpListEl.id = 'cpList';
 cpListEl.style.cssText = 'padding:0 14px 14px;font-size:11.5px;font-family:var(--mono);';
 document.getElementById('cpStatusListSlot').appendChild(cpListEl);
 cpListEl.addEventListener('click', (e)=>{
-  const row = e.target.closest('.cp-row');
+  const row = e.target.closest('.mh-card');
   if(!row) return;
   const cp = state.controlPoints[+row.dataset.i];
   if(!cp) return;
@@ -986,15 +987,16 @@ function renderCPList(){
   cnt.textContent = all.length;
   if(existCnt) existCnt.textContent = all.filter(cp=>cp.status!=='망실').length;
   if(lostCnt) lostCnt.textContent = all.filter(cp=>cp.status==='망실').length;
+  list.classList.add('list-grid');
   if(!all.length){
-    list.innerHTML = '<div style="color:var(--text-dim);font-family:var(--sans);font-size:11.5px;">업로드된 기준점이 없습니다.</div>';
+    list.innerHTML = '<div class="empty-note">업로드된 기준점이 없습니다.</div>';
     _lastCPListSig = null;
     return;
   }
   const term = cpSearchTerm.trim().toLowerCase();
   const filtered = term ? all.filter(cp=>cp.name.toLowerCase().includes(term)) : all;
   if(!filtered.length){
-    list.innerHTML = '<div style="color:var(--text-dim);font-family:var(--sans);font-size:11.5px;">검색 결과가 없습니다.</div>';
+    list.innerHTML = '<div class="empty-note">검색 결과가 없습니다.</div>';
     _lastCPListSig = null;
     return;
   }
@@ -1004,10 +1006,9 @@ function renderCPList(){
   list.innerHTML = filtered.map((cp)=>{
     const lost = cp.status==='망실';
     const i = all.indexOf(cp);
-    return `<div class="cp-row" data-i="${i}" style="padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:6px;">
-      <span style="color:${lost?'#E5484D':'#8B5CF6'};font-weight:700;">▲</span>
-      <span style="font-weight:600;color:var(--text);">${cp.name}</span>
-      <span style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:${lost?'rgba(229,72,77,0.12)':'rgba(139,92,246,0.12)'};color:${lost?'#E5484D':'#8B5CF6'};">${lost?'망실':'존재'}</span>
+    return `<div class="mh-card" data-i="${i}" title="${cp.name}">
+      <span class="mh-id" style="color:${lost?'#E5484D':'#8B5CF6'};">▲ ${cp.name}</span>
+      <div class="mh-status-row"><span style="font-weight:700;color:${lost?'#E5484D':'#8B5CF6'};">${lost?'망실':'존재'}</span></div>
     </div>`;
   }).join('');
 }
@@ -1407,6 +1408,7 @@ let _lastListSig = null;
 function renderList(){
   const wrap = document.getElementById('listWrap');
   const ids = getFilteredIds();
+  wrap.classList.add('list-grid');
   if(!state.order.length){
     wrap.innerHTML = '<div class="empty-note">아직 업로드된 맨홀 데이터가 없습니다.<br>상단에서 엑셀 파일을 업로드하세요.</div>';
     _lastListSig = null;
@@ -1431,10 +1433,9 @@ function renderList(){
       const id = ids[i];
       const m = state.manholes[id];
       const sel = id===selectedId ? 'selected':'';
-      html += `<div class="mh-row ${sel}" data-id="${id}">
-        <span class="dot" style="background:${STATUS_COLORS[m.status]}"></span>
-        <span class="id">${m.id}</span>
-        <span class="st">${m.status}</span>
+      html += `<div class="mh-card ${sel}" data-id="${id}" title="${m.id}">
+        <span class="mh-id">${m.id}</span>
+        <div class="mh-status-row"><span class="dot" style="background:${STATUS_COLORS[m.status]}"></span>${m.status}</div>
       </div>`;
     }
     wrap.insertAdjacentHTML('beforeend', html);
