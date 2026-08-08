@@ -153,6 +153,16 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
 .leaflet-control-attribution{font-size:10px;color:var(--text-dim);background:rgba(255,255,255,0.85);}
 .mh-label{background:rgba(255,255,255,0.92);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--text);box-shadow:none;}
 .mh-label-big{font-size:21px;padding:3px 9px;border-radius:6px;border:2px solid var(--accent);background:#fff;color:var(--accent);font-weight:800;}
+@keyframes searchFlashIcon{
+  0%,100%{ filter: drop-shadow(0 0 0px rgba(255,196,0,0)); }
+  50%{ filter: drop-shadow(0 0 12px rgba(255,196,0,1)) drop-shadow(0 0 6px rgba(255,196,0,1)); }
+}
+.search-flash{ animation: searchFlashIcon 0.5s ease-in-out 4; }
+@keyframes searchFlashLabel{
+  0%,100%{ background:#FFC400; color:#1A1D20; border-color:#1A1D20; }
+  50%{ background:#fff; color:#1A1D20; }
+}
+.search-flash-label{ animation: searchFlashLabel 0.5s ease-in-out 4; font-weight:800 !important; }
 .cp-label{background:#8B5CF6;border:1.5px solid #fff;border-radius:4px;padding:2px 7px;font-family:var(--mono);font-size:11px;font-weight:700;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.35);}
 .cp-label::before{border-top-color:#8B5CF6 !important;}
 .cp-label-lost{background:#E5484D;}
@@ -448,7 +458,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v5.2 · 2026-08-06';
+const APP_VERSION = 'v5.3 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -1514,9 +1524,46 @@ document.getElementById('unifiedSearchInput').addEventListener('input', renderUn
 document.getElementById('unifiedSearchInput').addEventListener('keydown', (e)=>{
   if(e.key==='Enter'){ e.preventDefault(); searchAddressAndFly(); }
 });
-document.getElementById('unifiedSearchResultSlot').addEventListener('click', (e)=>{
-  const card = e.target.closest('.mh-card');
-  if(!card) return;
+function flashMarker(marker){
+  if(!marker) return;
+  if(marker._icon) marker._icon.classList.add('search-flash');
+  marker.openTooltip();
+  if(marker._tooltip && marker._tooltip._container){
+    marker._tooltip._container.classList.add('search-flash-label');
+  }
+  setTimeout(()=>{
+    if(marker._icon) marker._icon.classList.remove('search-flash');
+    if(marker._tooltip && marker._tooltip._container){
+      marker._tooltip._container.classList.remove('search-flash-label');
+    }
+    updateLabelVisibility();
+  }, 2000);
+}
+function panToSearchResult(card){
+  if(card.dataset.type==='mh'){
+    const id = card.dataset.id;
+    const m = state.manholes[id];
+    if(!m) return;
+    const ll = toLatLng(m.x, m.y);
+    if(!ll) return;
+    switchToMapView();
+    initLeaflet();
+    leafletMap.setView(ll, Math.max(leafletMap.getZoom()||0, 19), {animate:false});
+    closeMenuModal();
+    setTimeout(()=>flashMarker(markerIndex[id] && markerIndex[id].marker), 80);
+  }else if(card.dataset.type==='cp'){
+    const cp = state.controlPoints.find(c=>c.name===card.dataset.name);
+    if(!cp) return;
+    const ll = toLatLng(cp.x, cp.y);
+    if(!ll) return;
+    switchToMapView();
+    initLeaflet();
+    leafletMap.setView(ll, Math.max(leafletMap.getZoom()||0, 19), {animate:false});
+    closeMenuModal();
+    setTimeout(()=>flashMarker(cpMarkerIndex[cp.name] && cpMarkerIndex[cp.name].marker), 80);
+  }
+}
+function openSearchResultDetail(card){
   if(card.dataset.type==='mh'){
     selectManhole(card.dataset.id);
   }else if(card.dataset.type==='cp'){
@@ -1526,6 +1573,22 @@ document.getElementById('unifiedSearchResultSlot').addEventListener('click', (e)
     if(ll && leafletMap){ switchToMapView(); leafletMap.setView(ll, 18, {animate:false}); }
     selectControlPoint(cp.name);
   }
+}
+let _searchClickTimer = null;
+document.getElementById('unifiedSearchResultSlot').addEventListener('click', (e)=>{
+  const card = e.target.closest('.mh-card');
+  if(!card) return;
+  if(_searchClickTimer) clearTimeout(_searchClickTimer);
+  _searchClickTimer = setTimeout(()=>{
+    _searchClickTimer = null;
+    panToSearchResult(card);
+  }, 260);
+});
+document.getElementById('unifiedSearchResultSlot').addEventListener('dblclick', (e)=>{
+  const card = e.target.closest('.mh-card');
+  if(!card) return;
+  if(_searchClickTimer){ clearTimeout(_searchClickTimer); _searchClickTimer = null; }
+  openSearchResultDetail(card);
 });
 
 function toLatLng(x,y){
