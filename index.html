@@ -329,10 +329,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
     <div class="menu-content" id="menuSearch" style="display:none;">
       <div class="side-section" style="padding-bottom:10px;">
         <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:6px;">통합검색 (맨홀번호 · 기준점명 · 주소)</label>
-        <div style="display:flex;gap:6px;">
-          <input class="search-input" id="unifiedSearchInput" placeholder="맨홀번호, 기준점명 또는 주소 입력..." style="flex:1;">
-          <button id="addressSearchBtn" style="background:var(--accent);color:#fff;border:none;border-radius:7px;padding:0 12px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;">주소이동</button>
-        </div>
+        <input class="search-input" id="unifiedSearchInput" placeholder="맨홀번호, 기준점명 또는 주소 입력...">
         <div id="addressSearchMsg" style="font-size:10.5px;color:var(--text-dim);min-height:14px;margin-top:4px;"></div>
       </div>
       <div class="list-wrap" id="unifiedSearchResultSlot"></div>
@@ -458,7 +455,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v5.3 · 2026-08-06';
+const APP_VERSION = 'v5.4 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -1448,61 +1445,31 @@ function withTimeout(promise, ms){
 }
 
 /* ---------- 주소 검색 → 지도 이동 ---------- */
-async function searchAddressAndFly(){
-  const input = document.getElementById('unifiedSearchInput');
-  const msg = document.getElementById('addressSearchMsg');
-  const q = input.value.trim();
-  if(!q){ msg.textContent = '검색어(주소)를 입력해주세요'; return; }
-  if(!KAKAO_JS_KEY){ msg.textContent = '주소 검색이 아직 설정되지 않았습니다.'; return; }
-  msg.textContent = '주소 검색 중...';
-  try{
-    await withTimeout(loadKakaoSdk(), 6000);
-    const result = await withTimeout(new Promise((resolve, reject)=>{
-      const geocoder = new kakao.maps.services.Geocoder();
-      geocoder.addressSearch(q, (result, status)=>{
-        if(status === kakao.maps.services.Status.OK && result && result[0]){
-          resolve(result[0]);
-        }else{
-          resolve(null);
-        }
-      });
-    }), 6000);
-    if(!result){ msg.textContent = '주소 검색 결과가 없습니다.'; return; }
-    const lat = parseFloat(result.y), lng = parseFloat(result.x);
-    switchToMapView();
-    initLeaflet();
-    leafletMap.setView([lat, lng], 18, {animate:false});
-    closeMenuModal();
-    msg.textContent = '';
-    showToast(`'${q}' 위치로 이동했습니다`);
-  }catch(e){
-    console.error('address search error:', e);
-    msg.textContent = e==='timeout' ? '검색이 지연되고 있습니다.' : '주소 검색에 실패했습니다.';
-  }
-}
-document.getElementById('addressSearchBtn').addEventListener('click', searchAddressAndFly);
+/* ---------- 통합검색: 맨홀 + 기준점 + 주소를 한 입력창에서 자동으로 함께 검색 ---------- */
+let _addrSearchGen = 0;
+let _addrDebounceTimer = null;
+let _lastAddrResult = null; // {q, lat, lng}
 
-/* ---------- 통합검색: 맨홀 + 기준점을 하나의 입력창으로 검색, 검색어 없으면 결과 숨김 ---------- */
 function renderUnifiedSearch(){
   const input = document.getElementById('unifiedSearchInput');
   const slot = document.getElementById('unifiedSearchResultSlot');
+  const msg = document.getElementById('addressSearchMsg');
   const term = input.value.trim().toLowerCase();
-  document.getElementById('addressSearchMsg').textContent = '';
   slot.classList.add('list-grid');
+
   if(!term){
-    slot.innerHTML = '<div class="empty-note">맨홀번호, 기준점명을 입력하면<br>검색 결과가 여기에 표시됩니다.</div>';
+    slot.innerHTML = '<div class="empty-note">맨홀번호, 기준점명, 또는 주소를<br>입력하면 검색 결과가 여기에 표시됩니다.</div>';
+    msg.textContent = '';
+    _lastAddrResult = null;
     return;
   }
+
   const mhMatches = state.order.filter(id=>{
     const m = state.manholes[id];
     return m && m.id.toLowerCase().includes(term);
   });
   const cpMatches = (state.controlPoints||[]).filter(cp=>cp.name.toLowerCase().includes(term));
 
-  if(!mhMatches.length && !cpMatches.length){
-    slot.innerHTML = '<div class="empty-note">검색 결과가 없습니다.<br>주소 검색은 위 "주소이동" 버튼을 이용해주세요.</div>';
-    return;
-  }
   let html = '';
   mhMatches.forEach(id=>{
     const m = state.manholes[id];
@@ -1518,12 +1485,43 @@ function renderUnifiedSearch(){
       <div class="mh-status-row"><span style="font-weight:700;color:${lost?'#E5484D':'#8B5CF6'};">${lost?'망실':'존재'}</span></div>
     </div>`;
   });
-  slot.innerHTML = html;
+  slot.innerHTML = html || '<div class="empty-note">일치하는 맨홀·기준점이 없습니다.<br>주소로 검색 중이면 잠시만 기다려주세요.</div>';
+
+  // 주소 검색은 입력을 멈춘 뒤(디바운스) 백그라운드에서 자동 실행
+  clearTimeout(_addrDebounceTimer);
+  if(!KAKAO_JS_KEY){ msg.textContent = ''; return; }
+  msg.textContent = '주소도 함께 확인 중...';
+  const myGen = ++_addrSearchGen;
+  _addrDebounceTimer = setTimeout(async ()=>{
+    try{
+      await withTimeout(loadKakaoSdk(), 6000);
+      const result = await withTimeout(new Promise((resolve)=>{
+        const geocoder = new kakao.maps.services.Geocoder();
+        geocoder.addressSearch(term, (result, status)=>{
+          resolve(status===kakao.maps.services.Status.OK && result && result[0] ? result[0] : null);
+        });
+      }), 6000);
+      if(myGen !== _addrSearchGen) return; // 그 사이 검색어가 바뀌었으면 무시
+      if(!result){
+        msg.textContent = mhMatches.length||cpMatches.length ? '' : '주소 검색 결과도 없습니다.';
+        _lastAddrResult = null;
+        return;
+      }
+      const lat = parseFloat(result.y), lng = parseFloat(result.x);
+      _lastAddrResult = { q: input.value.trim(), lat, lng };
+      msg.textContent = '';
+      const addrCard = `<div class="mh-card" data-type="addr" style="grid-column:1 / -1;" title="${result.address_name || term}">
+        <span class="mh-id" style="color:var(--accent);">📍 ${result.address_name || term}</span>
+        <div class="mh-status-row">주소 검색 결과 · 클릭 시 이동</div>
+      </div>`;
+      slot.insertAdjacentHTML('beforeend', addrCard);
+    }catch(e){
+      if(myGen !== _addrSearchGen) return;
+      console.error('address search error:', e);
+    }
+  }, 500);
 }
 document.getElementById('unifiedSearchInput').addEventListener('input', renderUnifiedSearch);
-document.getElementById('unifiedSearchInput').addEventListener('keydown', (e)=>{
-  if(e.key==='Enter'){ e.preventDefault(); searchAddressAndFly(); }
-});
 function flashMarker(marker){
   if(!marker) return;
   if(marker._icon) marker._icon.classList.add('search-flash');
@@ -1561,6 +1559,15 @@ function panToSearchResult(card){
     leafletMap.setView(ll, Math.max(leafletMap.getZoom()||0, 19), {animate:false});
     closeMenuModal();
     setTimeout(()=>flashMarker(cpMarkerIndex[cp.name] && cpMarkerIndex[cp.name].marker), 80);
+  }else if(card.dataset.type==='addr' && _lastAddrResult){
+    switchToMapView();
+    initLeaflet();
+    const ll = [_lastAddrResult.lat, _lastAddrResult.lng];
+    leafletMap.setView(ll, 18, {animate:false});
+    closeMenuModal();
+    const tempMarker = L.marker(ll, {icon: L.divIcon({className:'', html:'<div style="width:14px;height:14px;border-radius:50%;background:#0B63CE;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);"></div>', iconSize:[14,14], iconAnchor:[7,7]})}).addTo(leafletMap);
+    setTimeout(()=>flashMarker(tempMarker), 80);
+    setTimeout(()=>leafletMap.removeLayer(tempMarker), 4000);
   }
 }
 function openSearchResultDetail(card){
@@ -1572,6 +1579,8 @@ function openSearchResultDetail(card){
     const ll = toLatLng(cp.x, cp.y);
     if(ll && leafletMap){ switchToMapView(); leafletMap.setView(ll, 18, {animate:false}); }
     selectControlPoint(cp.name);
+  }else if(card.dataset.type==='addr'){
+    panToSearchResult(card); // 주소는 상세정보가 없으므로 이동만 수행
   }
 }
 let _searchClickTimer = null;
