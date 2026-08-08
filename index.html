@@ -68,7 +68,7 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
 .menu-modal-title{font-weight:700;font-size:13.5px;color:var(--text);}
 .menu-modal-close{background:var(--panel-2);border:1px solid var(--border);border-radius:7px;width:26px;height:26px;color:var(--text-dim);cursor:pointer;font-size:13px;line-height:1;}
 .menu-modal-close:hover{color:var(--accent);border-color:var(--accent);}
-.menu-modal-body{flex:1;min-height:0;display:flex;flex-direction:column;}
+.menu-modal-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow-y:auto;}
 @media (max-width:860px){
   .menu-modal{left:10px;right:10px;width:auto;top:auto;bottom:64px;max-height:70vh;border-radius:14px;}
 }
@@ -455,7 +455,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v5.4 · 2026-08-06';
+const APP_VERSION = 'v5.5 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -2109,7 +2109,14 @@ function renderMap(){
       }
     });
     if(boundsPts.length && !hasFitBounds){
-      leafletMap.fitBounds(L.latLngBounds(boundsPts), {padding:[50,50]});
+      // 좌표 오류 등으로 인한 이상치(엉뚱하게 먼 위치) 때문에 지도가 과도하게 축소되는 것을 방지
+      const lats = boundsPts.map(p=>p[0]).slice().sort((a,b)=>a-b);
+      const lngs = boundsPts.map(p=>p[1]).slice().sort((a,b)=>a-b);
+      const medLat = lats[Math.floor(lats.length/2)];
+      const medLng = lngs[Math.floor(lngs.length/2)];
+      const nearPts = boundsPts.filter(p=>Math.abs(p[0]-medLat)<0.3 && Math.abs(p[1]-medLng)<0.3);
+      const useBounds = nearPts.length ? nearPts : boundsPts;
+      leafletMap.fitBounds(L.latLngBounds(useBounds), {padding:[50,50], animate:false, maxZoom:17});
       hasFitBounds = true;
     }
     setTimeout(()=>{
