@@ -318,31 +318,14 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
     <div class="menu-content" id="menuSearch" style="display:none;">
       <div class="side-section" style="padding-bottom:10px;">
-        <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:6px;">주소로 이동</label>
-        <div style="display:flex;gap:6px;margin-bottom:4px;">
-          <input class="search-input" id="addressSearchInput" placeholder="예: 강동구 성내동 123-4" style="flex:1;">
-          <button id="addressSearchBtn" style="background:var(--accent);color:#fff;border:none;border-radius:7px;padding:0 14px;font-size:12.5px;font-weight:700;cursor:pointer;">이동</button>
+        <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:6px;">통합검색 (맨홀번호 · 기준점명 · 주소)</label>
+        <div style="display:flex;gap:6px;">
+          <input class="search-input" id="unifiedSearchInput" placeholder="맨홀번호, 기준점명 또는 주소 입력..." style="flex:1;">
+          <button id="addressSearchBtn" style="background:var(--accent);color:#fff;border:none;border-radius:7px;padding:0 12px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;">주소이동</button>
         </div>
-        <div id="addressSearchMsg" style="font-size:10.5px;color:var(--text-dim);min-height:14px;"></div>
+        <div id="addressSearchMsg" style="font-size:10.5px;color:var(--text-dim);min-height:14px;margin-top:4px;"></div>
       </div>
-      <div class="side-section" style="padding-top:0;padding-bottom:10px;border-top:1px solid var(--border);">
-        <div class="sub-tabs" id="searchTypeTabs" style="margin-top:14px;">
-          <div class="stab active" data-stype="manhole">맨홀</div>
-          <div class="stab" data-stype="cp">기준점</div>
-        </div>
-      </div>
-      <div id="searchManholeView">
-        <div class="side-section" style="padding-top:0;padding-bottom:10px;">
-          <input class="search-input" id="searchInput" placeholder="맨홀번호 검색...">
-        </div>
-        <div class="list-wrap" id="searchListSlot"></div>
-      </div>
-      <div id="searchCPView" style="display:none;">
-        <div class="side-section" style="padding-top:0;padding-bottom:10px;">
-          <input class="search-input" id="cpSearchInput" placeholder="기준점명 검색...">
-        </div>
-        <div class="list-wrap" id="cpSearchResultSlot"></div>
-      </div>
+      <div class="list-wrap" id="unifiedSearchResultSlot"></div>
     </div>
 
     <div class="menu-content" id="menuStatus">
@@ -465,7 +448,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v5.1 · 2026-08-06';
+const APP_VERSION = 'v5.2 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -732,31 +715,10 @@ function closeMenuModal(){
   document.getElementById('menuModal').classList.remove('open');
   document.getElementById('menuBackdrop').classList.remove('open');
   document.querySelectorAll('.top-toolbar button').forEach(b=>b.classList.remove('active'));
-  if(searchTerm){ searchTerm=''; document.getElementById('searchInput').value=''; }
-  if(cpSearchTerm){ cpSearchTerm=''; document.getElementById('cpSearchInput').value=''; }
+  const usi = document.getElementById('unifiedSearchInput');
+  if(usi && usi.value){ usi.value=''; renderUnifiedSearch(); }
   activeMenu = null;
 }
-let searchType = 'manhole';
-function showSearchType(type){
-  searchType = type;
-  document.querySelectorAll('#searchTypeTabs .stab').forEach(b=>b.classList.toggle('active', b.dataset.stype===type));
-  document.getElementById('searchManholeView').style.display = type==='manhole' ? 'flex' : 'none';
-  document.getElementById('searchCPView').style.display = type==='cp' ? 'flex' : 'none';
-  if(type==='manhole'){
-    document.getElementById('searchListSlot').appendChild(listWrapEl);
-    renderList();
-    setTimeout(()=>document.getElementById('searchInput').focus(), 80);
-  }else{
-    document.getElementById('cpSearchResultSlot').appendChild(cpListEl);
-    renderCPList();
-    setTimeout(()=>document.getElementById('cpSearchInput').focus(), 80);
-  }
-}
-document.getElementById('searchTypeTabs').addEventListener('click', (e)=>{
-  const b = e.target.closest('.stab');
-  if(!b) return;
-  showSearchType(b.dataset.stype);
-});
 function showMenu(name){
   if(activeMenu===name){ closeMenuModal(); return; }
   activeMenu = name;
@@ -769,10 +731,9 @@ function showMenu(name){
   document.getElementById('menuStats').style.display = name==='stats' ? 'flex' : 'none';
 
   if(name==='search'){
-    showSearchType(searchType);
+    renderUnifiedSearch();
+    setTimeout(()=>document.getElementById('unifiedSearchInput').focus(), 80);
   }else{
-    if(searchTerm){ searchTerm=''; document.getElementById('searchInput').value=''; }
-    if(cpSearchTerm){ cpSearchTerm=''; document.getElementById('cpSearchInput').value=''; }
     if(name==='status'){
       if(statusSub==='manhole') document.getElementById('statusListSlot').appendChild(listWrapEl);
       else document.getElementById('cpStatusListSlot').appendChild(cpListEl);
@@ -1012,10 +973,6 @@ function renderCPList(){
     </div>`;
   }).join('');
 }
-document.getElementById('cpSearchInput').addEventListener('input', (e)=>{
-  cpSearchTerm = e.target.value;
-  renderCPList();
-});
 
 /* ---------- 조사자 관리 (관리자 메뉴) ---------- */
 function renderInspectorList(){
@@ -1344,10 +1301,6 @@ document.getElementById('fileInput').addEventListener('change', async (e)=>{
 });
 
 /* ---------- filters / search ---------- */
-document.getElementById('searchInput').addEventListener('input', (e)=>{
-  searchTerm = e.target.value.trim().toLowerCase();
-  renderAll();
-});
 document.getElementById('filterTabs').addEventListener('click', (e)=>{
   const el = e.target.closest('.ftab');
   if(!el) return;
@@ -1486,12 +1439,12 @@ function withTimeout(promise, ms){
 
 /* ---------- 주소 검색 → 지도 이동 ---------- */
 async function searchAddressAndFly(){
-  const input = document.getElementById('addressSearchInput');
+  const input = document.getElementById('unifiedSearchInput');
   const msg = document.getElementById('addressSearchMsg');
   const q = input.value.trim();
-  if(!q){ msg.textContent = '주소를 입력해주세요'; return; }
+  if(!q){ msg.textContent = '검색어(주소)를 입력해주세요'; return; }
   if(!KAKAO_JS_KEY){ msg.textContent = '주소 검색이 아직 설정되지 않았습니다.'; return; }
-  msg.textContent = '검색 중...';
+  msg.textContent = '주소 검색 중...';
   try{
     await withTimeout(loadKakaoSdk(), 6000);
     const result = await withTimeout(new Promise((resolve, reject)=>{
@@ -1504,7 +1457,7 @@ async function searchAddressAndFly(){
         }
       });
     }), 6000);
-    if(!result){ msg.textContent = '검색 결과가 없습니다.'; return; }
+    if(!result){ msg.textContent = '주소 검색 결과가 없습니다.'; return; }
     const lat = parseFloat(result.y), lng = parseFloat(result.x);
     switchToMapView();
     initLeaflet();
@@ -1514,12 +1467,65 @@ async function searchAddressAndFly(){
     showToast(`'${q}' 위치로 이동했습니다`);
   }catch(e){
     console.error('address search error:', e);
-    msg.textContent = e==='timeout' ? '검색이 지연되고 있습니다.' : '검색에 실패했습니다.';
+    msg.textContent = e==='timeout' ? '검색이 지연되고 있습니다.' : '주소 검색에 실패했습니다.';
   }
 }
 document.getElementById('addressSearchBtn').addEventListener('click', searchAddressAndFly);
-document.getElementById('addressSearchInput').addEventListener('keydown', (e)=>{
+
+/* ---------- 통합검색: 맨홀 + 기준점을 하나의 입력창으로 검색, 검색어 없으면 결과 숨김 ---------- */
+function renderUnifiedSearch(){
+  const input = document.getElementById('unifiedSearchInput');
+  const slot = document.getElementById('unifiedSearchResultSlot');
+  const term = input.value.trim().toLowerCase();
+  document.getElementById('addressSearchMsg').textContent = '';
+  slot.classList.add('list-grid');
+  if(!term){
+    slot.innerHTML = '<div class="empty-note">맨홀번호, 기준점명을 입력하면<br>검색 결과가 여기에 표시됩니다.</div>';
+    return;
+  }
+  const mhMatches = state.order.filter(id=>{
+    const m = state.manholes[id];
+    return m && m.id.toLowerCase().includes(term);
+  });
+  const cpMatches = (state.controlPoints||[]).filter(cp=>cp.name.toLowerCase().includes(term));
+
+  if(!mhMatches.length && !cpMatches.length){
+    slot.innerHTML = '<div class="empty-note">검색 결과가 없습니다.<br>주소 검색은 위 "주소이동" 버튼을 이용해주세요.</div>';
+    return;
+  }
+  let html = '';
+  mhMatches.forEach(id=>{
+    const m = state.manholes[id];
+    html += `<div class="mh-card" data-type="mh" data-id="${id}" title="${m.id}">
+      <span class="mh-id">${m.id}</span>
+      <div class="mh-status-row"><span class="dot" style="background:${STATUS_COLORS[m.status]}"></span>${m.status}</div>
+    </div>`;
+  });
+  cpMatches.forEach(cp=>{
+    const lost = cp.status==='망실';
+    html += `<div class="mh-card" data-type="cp" data-name="${cp.name}" title="${cp.name}">
+      <span class="mh-id" style="color:${lost?'#E5484D':'#8B5CF6'};">▲ ${cp.name}</span>
+      <div class="mh-status-row"><span style="font-weight:700;color:${lost?'#E5484D':'#8B5CF6'};">${lost?'망실':'존재'}</span></div>
+    </div>`;
+  });
+  slot.innerHTML = html;
+}
+document.getElementById('unifiedSearchInput').addEventListener('input', renderUnifiedSearch);
+document.getElementById('unifiedSearchInput').addEventListener('keydown', (e)=>{
   if(e.key==='Enter'){ e.preventDefault(); searchAddressAndFly(); }
+});
+document.getElementById('unifiedSearchResultSlot').addEventListener('click', (e)=>{
+  const card = e.target.closest('.mh-card');
+  if(!card) return;
+  if(card.dataset.type==='mh'){
+    selectManhole(card.dataset.id);
+  }else if(card.dataset.type==='cp'){
+    const cp = state.controlPoints.find(c=>c.name===card.dataset.name);
+    if(!cp) return;
+    const ll = toLatLng(cp.x, cp.y);
+    if(ll && leafletMap){ switchToMapView(); leafletMap.setView(ll, 18, {animate:false}); }
+    selectControlPoint(cp.name);
+  }
 });
 
 function toLatLng(x,y){
