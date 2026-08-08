@@ -455,7 +455,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v5.6 · 2026-08-06';
+const APP_VERSION = 'v5.7 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -1046,7 +1046,7 @@ function renderStatsDateList(){
   const sel = document.getElementById('statsDateSelect');
   const wrap = document.getElementById('statsDateListWrap');
   if(!sel.value){ wrap.innerHTML = '<div class="empty-note">날짜를 선택하세요</div>'; return; }
-  const ids = state.order.filter(id=>state.manholes[id] && state.manholes[id].date===sel.value);
+  const ids = getDayOrderIds(sel.value);
   if(!ids.length){ wrap.innerHTML = '<div class="empty-note">해당 날짜 데이터가 없습니다</div>'; return; }
   wrap.innerHTML = ids.map((id,i)=>`<div class="mh-row" style="cursor:default;"><span class="id">${i+1}. ${id}</span></div>`).join('');
 }
@@ -1134,9 +1134,21 @@ document.getElementById('periodTabs').addEventListener('click', (e)=>{
 });
 
 let dayViewDate = null;
+function getDayOrderIds(date){
+  const ids = state.order.filter(id=>state.manholes[id] && state.manholes[id].date===date);
+  // 실제로 속성값을 입력(저장)한 시각(enteredAt) 순서대로 정렬. 옛 데이터(값 없음)는 업로드 순서를 그대로 사용.
+  return ids.slice().sort((a,b)=>{
+    const ta = state.manholes[a].enteredAt || 0;
+    const tb = state.manholes[b].enteredAt || 0;
+    if(ta && tb) return ta - tb;
+    if(ta && !tb) return -1;
+    if(!ta && tb) return 1;
+    return ids.indexOf(a) - ids.indexOf(b);
+  });
+}
 function startDayView(date){
   dayViewDate = date;
-  const ids = state.order.filter(id=>state.manholes[id] && state.manholes[id].date===date);
+  const ids = getDayOrderIds(date);
   closeMenuModal();
   document.getElementById('dayViewBarText').textContent = `📅 ${date} 경로 · ${ids.length}개`;
   document.getElementById('dayViewBar').style.display = 'flex';
@@ -2054,10 +2066,25 @@ function renderMap(){
   const boundsPts = [];
   let dayIds = [];
   if(dayViewDate){
-    dayIds = state.order.filter(id=>state.manholes[id] && state.manholes[id].date===dayViewDate);
+    dayIds = getDayOrderIds(dayViewDate);
     const linePts = dayIds.map(id=>toLatLng(state.manholes[id].x, state.manholes[id].y)).filter(Boolean);
     if(linePts.length>1){
       L.polyline(linePts, {color:'#0B63CE', weight:4, opacity:0.85, dashArray:'8 8'}).addTo(dayViewLayerGroup);
+      // 진행방향 화살표: 각 구간 중간지점에 다음 지점을 향하는 삼각형 표시
+      for(let i=0;i<linePts.length-1;i++){
+        const p1 = linePts[i], p2 = linePts[i+1];
+        const mid = [(p1[0]+p2[0])/2, (p1[1]+p2[1])/2];
+        const dLat = p2[0]-p1[0], dLng = p2[1]-p1[1];
+        const angleDeg = Math.atan2(dLng, dLat) * 180/Math.PI; // 북쪽(위) 기준 시계방향 각도 = CSS rotate값과 동일
+        const arrowIcon = L.divIcon({
+          className:'',
+          html:`<div style="width:16px;height:16px;transform:rotate(${angleDeg}deg);display:flex;align-items:center;justify-content:center;">
+            <svg width="14" height="14" viewBox="0 0 14 14"><polygon points="7,1 13,12 1,12" fill="#0B63CE" stroke="#fff" stroke-width="1.2"/></svg>
+          </div>`,
+          iconSize:[16,16], iconAnchor:[8,8]
+        });
+        L.marker(mid, {icon:arrowIcon, interactive:false}).addTo(dayViewLayerGroup);
+      }
     }
   }
 
@@ -2305,7 +2332,9 @@ function renderDetailContent(panel){
     const el = document.getElementById(elId);
     el.addEventListener(evt, async ()=>{
       const v = el.type==='checkbox' ? el.checked : el.value;
-      state.manholes[selectedId][prop] = v;
+      const m = state.manholes[selectedId];
+      m[prop] = v;
+      if(!m.enteredAt) m.enteredAt = Date.now(); // 이 맨홀의 속성값을 처음 저장한 시각(=현장 입력 순서 판단 기준)
       await saveState();
       renderDashboard(); renderList();
       refreshMarkerAppearance(selectedId);
