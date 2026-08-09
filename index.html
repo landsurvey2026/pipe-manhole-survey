@@ -455,7 +455,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v5.7 · 2026-08-06';
+const APP_VERSION = 'v5.8 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -1833,7 +1833,7 @@ document.getElementById('addManholeNextBtn').addEventListener('click', ()=>{
   showToast('지도를 눌러 맨홀 위치를 지정하세요');
 });
 
-let leafletMap = null, markerLayer = null, cpLayer = null, dayViewLayerGroup = null, hasFitBounds = false;
+let leafletMap = null, markerLayer = null, cpLayer = null, dayViewLayerGroup = null, hasFitBounds = false, manholeRenderer = null;
 let baseLayers = {}, currentBase = 'map';
 let meMarker = null, meCircle = null;
 const LocateControl = L.Control.extend({
@@ -1905,6 +1905,10 @@ function initLeaflet(){
   baseLayers.sat = L.layerGroup([satImg, satLabels]);
 
   baseLayers.map.addTo(leafletMap);
+  // 맨홀이 기준점(및 다른 마커)보다 항상 위에 그려지도록 전용 pane(더 높은 z-index) 생성
+  leafletMap.createPane('manholePane');
+  leafletMap.getPane('manholePane').style.zIndex = 650; // 기본 markerPane(600)보다 위
+  manholeRenderer = L.canvas({pane:'manholePane'});
   markerLayer = L.layerGroup().addTo(leafletMap);
   cpLayer = L.layerGroup().addTo(leafletMap);
   dayViewLayerGroup = L.layerGroup().addTo(leafletMap);
@@ -1968,7 +1972,7 @@ function renderControlPoints(){
     let entry = cpMarkerIndex[cp.name];
     if(!entry){
       const marker = L.marker(ll, {icon}).addTo(cpLayer);
-      marker.on('dblclick', ()=>selectControlPoint(cp.name));
+      marker.on('click', ()=>selectControlPoint(cp.name));
       entry = { marker, icon:null, tooltipClass:null };
       cpMarkerIndex[cp.name] = entry;
     }else{
@@ -2114,16 +2118,15 @@ function renderMap(){
 
     let entry = markerIndex[id];
     if(!entry){
-      const marker = L.circleMarker(ll, style).addTo(markerLayer);
+      const marker = L.circleMarker(ll, {...style, renderer: manholeRenderer, pane:'manholePane'}).addTo(markerLayer);
       marker.on('click', ()=>{
         if(selectingForMove){
           selectingForMove = false;
           document.querySelectorAll('.locate-btn-active').forEach(b=>b.classList.remove('locate-btn-active'));
           startMoveMode(id);
+        }else{
+          selectManhole(id);
         }
-      });
-      marker.on('dblclick', ()=>{
-        if(!selectingForMove) selectManhole(id);
       });
       entry = { marker, styleKey:null, tooltipText:null, tooltipClass:null };
       markerIndex[id] = entry;
