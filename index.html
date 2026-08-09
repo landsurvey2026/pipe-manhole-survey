@@ -166,6 +166,8 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
 .cp-label{background:#8B5CF6;border:1.5px solid #fff;border-radius:4px;padding:2px 7px;font-family:var(--mono);font-size:11px;font-weight:700;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.35);}
 .cp-label::before{border-top-color:#8B5CF6 !important;}
 .cp-label-lost{background:#E5484D;}
+.cp-label-unsurveyed{background:#9AA6B2;}
+.cp-label-unsurveyed::before{border-top-color:#9AA6B2 !important;}
 .cp-label-lost::before{border-top-color:#E5484D !important;}
 .mh-label::before{border-top-color:rgba(255,255,255,0.92) !important;}
 .leaflet-top.leaflet-right{top:56px !important;}
@@ -310,6 +312,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
           <div class="t2">.xlsx / .xls / .csv 지원 · 이름 기준으로 갱신</div>
         </label>
         <button id="clearAllCPBtn" style="width:100%;margin-top:8px;background:rgba(211,47,47,0.08);border:1px solid var(--st-bad);color:var(--st-bad);border-radius:7px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">🗑 전체 기준점 삭제 (엑셀 없이)</button>
+        <button id="resetCPStatusBtn" style="width:100%;margin-top:6px;background:rgba(154,166,178,0.12);border:1px solid #9AA6B2;color:#6B7A89;border-radius:7px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">↺ 전체 기준점 상태를 "미조사"로 초기화</button>
       </div>
       <div class="side-section">
         <div style="font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:8px;">엑셀 내보내기</div>
@@ -356,7 +359,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
       <div id="statusCPView" style="display:none;">
         <div class="side-section" style="padding-bottom:10px;">
           <div style="font-size:12px;font-weight:700;color:var(--text-dim);">
-            기준점 <span id="cpCount">0</span>개 · 존재 <span id="cpExistCount" style="color:#8B5CF6;">0</span> · 망실 <span id="cpLostCount" style="color:#E5484D;">0</span>
+            기준점 <span id="cpCount">0</span>개 · 미조사 <span id="cpUnsurveyedCount" style="color:#9AA6B2;">0</span> · 존재 <span id="cpExistCount" style="color:#8B5CF6;">0</span> · 망실 <span id="cpLostCount" style="color:#E5484D;">0</span>
           </div>
         </div>
         <div class="list-wrap" id="cpStatusListSlot"></div>
@@ -414,6 +417,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
       <span><i class="dot" style="background:var(--st-none)"></i>미착수</span>
       <span><i class="dot" style="background:var(--st-progress)"></i>진행중</span>
       <span><i class="dot" style="background:var(--st-done)"></i>완료</span>
+      <span style="color:#9AA6B2;">▲ 기준점(미조사)</span>
       <span style="color:#8B5CF6;">▲ 기준점(존재)</span>
       <span style="color:#E5484D;">▲ 기준점(망실)</span>
     </div>
@@ -455,7 +459,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v5.9 · 2026-08-06';
+const APP_VERSION = 'v6.0 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -586,7 +590,8 @@ function renderCPDetail(){
     <div class="field">
       <label>상태</label>
       <select id="cp-status">
-        <option value="존재" ${cp.status!=='망실'?'selected':''}>존재</option>
+        <option value="미조사" ${(!cp.status||cp.status==='미조사')?'selected':''}>미조사</option>
+        <option value="존재" ${cp.status==='존재'?'selected':''}>존재 (확인됨)</option>
         <option value="망실" ${cp.status==='망실'?'selected':''}>망실</option>
       </select>
     </div>
@@ -909,7 +914,7 @@ document.getElementById('cpFileInput').addEventListener('change', async (e)=>{
     if(!name || BAD_CP_NAMES.includes(name.toLowerCase())) continue;
     const px = parseFloat(row[xIdx]), py = parseFloat(row[yIdx]);
     if(!isFinite(px) || !isFinite(py)) continue;
-    parsed.push({name, x:px, y:py, z:parseFloat(row[zIdx]), status:'존재', lossReason:'', lossReasonNote:''});
+    parsed.push({name, x:px, y:py, z:parseFloat(row[zIdx]), status:'미조사', lossReason:'', lossReasonNote:''});
   }
   if(!parsed.length){ showToast('인식된 기준점 데이터가 없습니다'); e.target.value=''; return; }
 
@@ -926,7 +931,7 @@ document.getElementById('cpFileInput').addEventListener('change', async (e)=>{
     if(!confirm(`기존 기준점을 모두 지우고 엑셀 내용(${parsed.length}건)으로 전체 교체할까요?\n(같은 이름은 기존 존재/망실 상태를 유지합니다)`)){ e.target.value=''; return; }
     const merged = parsed.map(r=>{
       const existing = state.controlPoints.find(cp=>cp.name===r.name);
-      return existing ? {...r, status:existing.status||'존재', lossReason:existing.lossReason||'', lossReasonNote:existing.lossReasonNote||''} : r;
+      return existing ? {...r, status:existing.status||'미조사', lossReason:existing.lossReason||'', lossReasonNote:existing.lossReasonNote||''} : r;
     });
     state.controlPoints = merged;
     await saveState();
@@ -947,14 +952,22 @@ document.getElementById('cpFileInput').addEventListener('change', async (e)=>{
 
 let cpSearchTerm = '';
 let _lastCPListSig = null;
+function cpStatusColor(status){
+  return status==='망실' ? '#E5484D' : (status==='존재' ? '#8B5CF6' : '#9AA6B2');
+}
+function cpStatusLabel(status){
+  return status==='망실' ? '망실' : (status==='존재' ? '존재' : '미조사');
+}
 function renderCPList(){
   const list = document.getElementById('cpList');
   const cnt = document.getElementById('cpCount');
+  const unsurveyedCnt = document.getElementById('cpUnsurveyedCount');
   const existCnt = document.getElementById('cpExistCount');
   const lostCnt = document.getElementById('cpLostCount');
   const all = state.controlPoints || [];
   cnt.textContent = all.length;
-  if(existCnt) existCnt.textContent = all.filter(cp=>cp.status!=='망실').length;
+  if(unsurveyedCnt) unsurveyedCnt.textContent = all.filter(cp=>!cp.status || cp.status==='미조사').length;
+  if(existCnt) existCnt.textContent = all.filter(cp=>cp.status==='존재').length;
   if(lostCnt) lostCnt.textContent = all.filter(cp=>cp.status==='망실').length;
   list.classList.add('list-grid');
   if(!all.length){
@@ -973,11 +986,11 @@ function renderCPList(){
   if(sig === _lastCPListSig) return;
   _lastCPListSig = sig;
   list.innerHTML = filtered.map((cp)=>{
-    const lost = cp.status==='망실';
+    const c = cpStatusColor(cp.status);
     const i = all.indexOf(cp);
     return `<div class="mh-card" data-i="${i}" title="${cp.name}">
-      <span class="mh-id" style="color:${lost?'#E5484D':'#8B5CF6'};">▲ ${cp.name}</span>
-      <div class="mh-status-row"><span style="font-weight:700;color:${lost?'#E5484D':'#8B5CF6'};">${lost?'망실':'존재'}</span></div>
+      <span class="mh-id" style="color:${c};">▲ ${cp.name}</span>
+      <div class="mh-status-row"><span style="font-weight:700;color:${c};">${cpStatusLabel(cp.status)}</span></div>
     </div>`;
   }).join('');
 }
@@ -1183,6 +1196,15 @@ document.getElementById('clearAllCPBtn').addEventListener('click', async ()=>{
   renderAll();
   showToast(`기준점 ${cnt}개 전체 삭제됨`);
 });
+document.getElementById('resetCPStatusBtn').addEventListener('click', async ()=>{
+  const cnt = state.controlPoints.length;
+  if(!cnt){ showToast('기준점이 없습니다'); return; }
+  if(!confirm(`전체 기준점 ${cnt}개의 상태를 모두 "미조사"로 되돌릴까요?\n(망실사유 등 조사 기록도 함께 초기화됩니다)`)) return;
+  state.controlPoints.forEach(cp=>{ cp.status='미조사'; cp.lossReason=''; cp.lossReasonNote=''; });
+  await saveState();
+  renderAll();
+  showToast(`기준점 ${cnt}개 상태가 미조사로 초기화되었습니다`);
+});
 
 /* ---------- 엑셀 내보내기 (맨홀 조사현황 + 기준점 현황, 저장 위치 지정) ---------- */
 document.getElementById('exportExcelBtn').addEventListener('click', async ()=>{
@@ -1207,7 +1229,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', async ()=>{
 
   const cpRows = state.controlPoints.map(cp=>({
     '기준점명': cp.name, 'X': cp.x, 'Y': cp.y, 'Z': cp.z,
-    '상태': cp.status || '존재',
+    '상태': cp.status || '미조사',
     '망실사유': cp.status==='망실' ? (cp.lossReason==='기타' ? (cp.lossReasonNote || '기타') : (cp.lossReason || '')) : ''
   }));
   const cpSheet = XLSX.utils.json_to_sheet(cpRows);
@@ -1492,10 +1514,10 @@ function renderUnifiedSearch(){
     </div>`;
   });
   cpMatches.forEach(cp=>{
-    const lost = cp.status==='망실';
+    const c = cpStatusColor(cp.status);
     html += `<div class="mh-card" data-type="cp" data-name="${cp.name}" title="${cp.name}">
-      <span class="mh-id" style="color:${lost?'#E5484D':'#8B5CF6'};">▲ ${cp.name}</span>
-      <div class="mh-status-row"><span style="font-weight:700;color:${lost?'#E5484D':'#8B5CF6'};">${lost?'망실':'존재'}</span></div>
+      <span class="mh-id" style="color:${c};">▲ ${cp.name}</span>
+      <div class="mh-status-row"><span style="font-weight:700;color:${c};">${cpStatusLabel(cp.status)}</span></div>
     </div>`;
   });
   slot.innerHTML = html || '<div class="empty-note">일치하는 맨홀·기준점이 없습니다.<br>주소로 검색 중이면 잠시만 기다려주세요.</div>';
@@ -1937,9 +1959,9 @@ document.getElementById('layerToggle').addEventListener('click',(e)=>{
 
 const _cpIconCache = {};
 function cpIcon(status){
-  const key = status==='망실' ? 'lost' : 'present';
+  const key = status==='망실' ? 'lost' : (status==='존재' ? 'present' : 'unsurveyed');
   if(_cpIconCache[key]) return _cpIconCache[key];
-  const color = status==='망실' ? '#E5484D' : '#8B5CF6';
+  const color = status==='망실' ? '#E5484D' : (status==='존재' ? '#8B5CF6' : '#9AA6B2');
   const icon = L.divIcon({
     className:'',
     html:`<div style="filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));">
@@ -1964,7 +1986,7 @@ function renderControlPoints(){
     if(!ll) return;
     seen.add(cp.name);
     const icon = cpIcon(cp.status);
-    const tooltipClass = cp.status==='망실' ? 'cp-label cp-label-lost' : 'cp-label';
+    const tooltipClass = cp.status==='망실' ? 'cp-label cp-label-lost' : (cp.status==='존재' ? 'cp-label' : 'cp-label cp-label-unsurveyed');
     let entry = cpMarkerIndex[cp.name];
     if(!entry){
       const marker = L.marker(ll, {icon}).addTo(cpLayer);
