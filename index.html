@@ -474,7 +474,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v6.4 · 2026-08-06';
+const APP_VERSION = 'v6.5 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -2027,16 +2027,29 @@ function initBoundaryLayers(){
     sld_body: buildBoundarySLD('lt_c_ademd','emd_kor_nm','#0B63CE', dongFilter),
     version:'1.3.0', key:VWORLD_KEY, maxZoom:21
   });
+  // 진단용: 실제 요청 URL과 타일 성공/실패 여부를 콘솔에 출력
+  console.log('[경계] 구/군 WMS 예시 URL:', guBoundaryLayer.getTileUrl({x:0,y:0,z:10}));
+  console.log('[경계] 동 WMS 예시 URL:', dongBoundaryLayer.getTileUrl({x:0,y:0,z:10}));
+  guBoundaryLayer.on('tileerror', (ev)=>console.error('[경계] 구/군 타일 로드 실패:', ev));
+  guBoundaryLayer.on('tileload', ()=>console.log('[경계] 구/군 타일 로드 성공'));
+  dongBoundaryLayer.on('tileerror', (ev)=>console.error('[경계] 동 타일 로드 실패:', ev));
+  dongBoundaryLayer.on('tileload', ()=>console.log('[경계] 동 타일 로드 성공'));
 }
 document.getElementById('boundaryToggle').addEventListener('click',(e)=>{
   const b = e.target.closest('button');
   if(!b) return;
-  initLeaflet();
-  initBoundaryLayers();
-  b.classList.toggle('active');
-  const on = b.classList.contains('active');
-  const layer = b.dataset.layer==='gu' ? guBoundaryLayer : dongBoundaryLayer;
-  if(on) layer.addTo(leafletMap); else leafletMap.removeLayer(layer);
+  try{
+    initLeaflet();
+    initBoundaryLayers();
+    b.classList.toggle('active');
+    const on = b.classList.contains('active');
+    const layer = b.dataset.layer==='gu' ? guBoundaryLayer : dongBoundaryLayer;
+    console.log('[경계] 버튼 클릭:', b.dataset.layer, 'on=', on, 'layer=', layer);
+    if(on) layer.addTo(leafletMap); else leafletMap.removeLayer(layer);
+  }catch(err){
+    console.error('[경계] 오류 발생:', err);
+    showToast('경계 표시 중 오류가 발생했습니다 (콘솔 확인)');
+  }
 });
 
 /* 관리자에서 업로드한 정식 행정경계(GeoJSON, 추후 CAD 변환분)를 표시 */
