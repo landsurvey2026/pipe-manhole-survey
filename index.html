@@ -495,7 +495,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v7.4 · 2026-08-06';
+const APP_VERSION = 'v7.5 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -656,29 +656,31 @@ function renderCPDetail(){
   document.getElementById('cpDetailBottomClose').addEventListener('click', deselectControlPoint);
   document.getElementById('cpDetailDeleteBtn').addEventListener('click', ()=>deleteControlPoint(cp.name));
 
-  document.getElementById('cp-status').addEventListener('change', async (e)=>{
+  document.getElementById('cp-status').addEventListener('change', (e)=>{
     cp.status = e.target.value;
     if(cp.status!=='망실'){ cp.lossReason=''; cp.lossReasonNote=''; }
-    await saveState();
     renderCPDetail();
     renderCenter();
-    showToast('저장됨');
+    saveState().then(()=>showToast('저장됨'));
   });
   const reasonSelect = document.getElementById('cp-reason');
   if(reasonSelect){
-    reasonSelect.addEventListener('change', async (e)=>{
+    reasonSelect.addEventListener('change', (e)=>{
       cp.lossReason = e.target.value;
       if(cp.lossReason!=='기타') cp.lossReasonNote = '';
-      await saveState();
       renderCPDetail();
-      showToast('저장됨');
+      if(cp.lossReason==='기타'){
+        const note = document.getElementById('cp-reason-note');
+        if(note) note.focus();
+      }
+      saveState().then(()=>showToast('저장됨'));
     });
   }
   const reasonNote = document.getElementById('cp-reason-note');
   if(reasonNote){
-    reasonNote.addEventListener('input', async (e)=>{
+    reasonNote.addEventListener('input', (e)=>{
       cp.lossReasonNote = e.target.value;
-      await saveState();
+      saveState();
     });
   }
 }
@@ -2551,22 +2553,25 @@ function renderDetailContent(panel){
   bind('f-date','date');
   bind('f-note','note','input');
 
-  document.getElementById('f-condition').addEventListener('change', async (e)=>{
+  document.getElementById('f-condition').addEventListener('change', (e)=>{
     const m = state.manholes[selectedId];
     m.condition = e.target.value;
     if(m.condition!=='기타') m.conditionNote = '';
     if(!m.enteredAt) m.enteredAt = Date.now();
-    await saveState();
     renderDetail();
+    if(m.condition==='기타'){
+      const note = document.getElementById('f-condition-note');
+      if(note) note.focus();
+    }
     refreshMarkerAppearance(selectedId);
-    showToast('저장됨');
+    saveState().then(()=>showToast('저장됨'));
   });
   const conditionNoteInput = document.getElementById('f-condition-note');
   if(conditionNoteInput){
-    conditionNoteInput.addEventListener('input', async (e)=>{
+    conditionNoteInput.addEventListener('input', (e)=>{
       const m = state.manholes[selectedId];
       m.conditionNote = e.target.value;
-      await saveState();
+      saveState();
     });
   }
 }
