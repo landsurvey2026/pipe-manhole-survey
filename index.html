@@ -502,7 +502,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v7.7 · 2026-08-06';
+const APP_VERSION = 'v7.8 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -580,6 +580,29 @@ async function deleteManhole(id){
   await saveState();
   renderAll();
   showToast(`'${id}' 맨홀이 삭제되었습니다`);
+}
+async function resetManholeSurvey(id){
+  const m = state.manholes[id];
+  if(!m) return;
+  if(!confirm(`'${id}' 맨홀에 입력한 조사값을 모두 초기화할까요?\n(맨홀번호·좌표는 유지되고, 조사 입력값만 지워집니다)`)) return;
+  m.status = '미착수';
+  m.lidar = false;
+  m.invert = '없음';
+  m.ladder = '없음';
+  m.fall = '없음';
+  m.sensor = '없음';
+  m.condition = '';
+  m.conditionNote = '';
+  m.inspector = '';
+  m.date = '';
+  m.note = '';
+  m.enteredAt = null;
+  renderDetail();
+  refreshMarkerAppearance(id);
+  renderDashboard();
+  renderList();
+  await saveState();
+  showToast(`'${id}' 맨홀 조사값이 초기화되었습니다`);
 }
 document.getElementById('detailBackdrop').addEventListener('click', closeDetailModal);
 
@@ -2579,7 +2602,11 @@ function renderDetailContent(panel){
     </div>
     <div class="field">
       <label>조사일자</label>
-      <input type="date" id="f-date" value="${m.date||''}">
+      <div style="display:flex;gap:6px;">
+        <input type="date" id="f-date" value="${m.date||''}" style="flex:1;">
+        <button id="f-date-today" type="button" style="background:var(--panel-2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:0 10px;font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap;">오늘</button>
+        <button id="f-date-clear" type="button" style="background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:0 10px;font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap;">지우기</button>
+      </div>
     </div>
     <div class="field">
       <label>진행상태</label>
@@ -2596,6 +2623,7 @@ function renderDetailContent(panel){
 
     <div style="display:flex;gap:8px;margin-top:6px;">
       <button id="detailBottomClose" style="flex:1;background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);border-radius:7px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;">닫기</button>
+      <button id="detailResetBtn" style="flex:1;background:rgba(154,166,178,0.12);border:1px solid #9AA6B2;color:#6B7A89;border-radius:7px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;">초기화</button>
       <button id="detailDeleteBtn" style="flex:1;background:rgba(211,47,47,0.1);border:1px solid var(--st-bad);color:var(--st-bad);border-radius:7px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;">삭제</button>
     </div>
   `;
@@ -2603,7 +2631,23 @@ function renderDetailContent(panel){
   document.getElementById('detailCloseBtn').addEventListener('click', deselectManhole);
   document.getElementById('detailBottomClose').addEventListener('click', deselectManhole);
   document.getElementById('detailDeleteBtn').addEventListener('click', ()=>deleteManhole(selectedId));
+  document.getElementById('detailResetBtn').addEventListener('click', ()=>resetManholeSurvey(selectedId));
   document.getElementById('moveLocationBtn').addEventListener('click', ()=>startMoveMode(selectedId));
+  document.getElementById('f-date-today').addEventListener('click', async ()=>{
+    const mm = state.manholes[selectedId];
+    const d = new Date();
+    const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    mm.date = iso;
+    if(!mm.enteredAt) mm.enteredAt = Date.now();
+    renderDetail();
+    saveState().then(()=>showToast('저장됨'));
+  });
+  document.getElementById('f-date-clear').addEventListener('click', async ()=>{
+    const mm = state.manholes[selectedId];
+    mm.date = '';
+    renderDetail();
+    saveState().then(()=>showToast('저장됨'));
+  });
 
   const bind = (elId, prop, evt='change') => {
     const el = document.getElementById(elId);
