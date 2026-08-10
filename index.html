@@ -369,10 +369,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
         <div class="list-wrap" id="statusListSlot"></div>
       </div>
       <div id="statusCPView" style="display:none;">
-        <div class="side-section" style="padding-bottom:10px;">
-          <div style="font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:8px;">
-            기준점 <span id="cpCount">0</span>개
-          </div>
+        <div class="side-section" style="padding-top:0;padding-bottom:10px;">
           <div class="filter-tabs" id="cpFilterTabs">
             <div class="ftab active" data-cf="all">전체 <span id="cpFtAll">0</span></div>
             <div class="ftab" data-cf="미조사">미조사 <span id="cpFtUnsurveyed">0</span></div>
@@ -498,7 +495,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v7.3 · 2026-08-06';
+const APP_VERSION = 'v7.4 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -745,7 +742,6 @@ listWrapEl.addEventListener('click', (e)=>{
 // cpListEl도 검색(기준점)/현황(기준점현황) 슬롯 사이를 이동하는 공용 리스트 컨테이너
 const cpListEl = document.createElement('div');
 cpListEl.id = 'cpList';
-cpListEl.style.cssText = 'padding:0 14px 14px;font-size:11.5px;font-family:var(--mono);';
 document.getElementById('cpStatusListSlot').appendChild(cpListEl);
 cpListEl.addEventListener('click', (e)=>{
   const row = e.target.closest('.mh-card');
@@ -1007,13 +1003,11 @@ function getFilteredCPs(){
 }
 function renderCPList(){
   const list = document.getElementById('cpList');
-  const cnt = document.getElementById('cpCount');
   const ftAll = document.getElementById('cpFtAll');
   const ftUnsurveyed = document.getElementById('cpFtUnsurveyed');
   const ftExist = document.getElementById('cpFtExist');
   const ftLost = document.getElementById('cpFtLost');
   const all = state.controlPoints || [];
-  cnt.textContent = all.length;
   const unsurveyedN = all.filter(cp=>!cp.status || cp.status==='미조사').length;
   const existN = all.filter(cp=>cp.status==='존재').length;
   const lostN = all.filter(cp=>cp.status==='망실').length;
