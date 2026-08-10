@@ -474,7 +474,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v6.8 · 2026-08-06';
+const APP_VERSION = 'v6.9 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -587,109 +587,6 @@ async function deleteControlPoint(name){
   renderAll();
   showToast(`'${name}' 기준점이 삭제되었습니다`);
 }
-/* ---------- 기준점 근경/원경 사진: 카메라 촬영, 압축 저장, 파일명 규칙(번호(근)/번호(원)) ---------- */
-function cpPhotoSlotHtml(cp, field, tag, label){
-  const photo = cp[field];
-  return `<div style="flex:1;min-width:0;">
-    <div style="font-size:10.5px;color:var(--text-dim);margin-bottom:4px;">${label} (${tag})</div>
-    ${photo
-      ? `<img src="${photo}" id="cp-${field}-thumb" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:7px;border:1px solid var(--border);cursor:pointer;">`
-      : `<div id="cp-${field}-thumb" style="width:100%;aspect-ratio:4/3;border-radius:7px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:20px;">📷</div>`}
-    <div style="display:flex;gap:4px;margin-top:4px;">
-      <label class="cp-photo-btn" style="flex:1;text-align:center;background:var(--panel-2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 4px;font-size:10.5px;font-weight:600;cursor:pointer;">
-        ${photo ? '재촬영' : '촬영'}
-        <input type="file" accept="image/*" capture="environment" id="cp-${field}-input" style="display:none;">
-      </label>
-      ${photo ? `<button id="cp-${field}-dl" title="다운로드" style="background:var(--panel-2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px;font-size:10.5px;cursor:pointer;">⬇</button>
-      <button id="cp-${field}-del" title="삭제" style="background:rgba(211,47,47,0.08);border:1px solid var(--st-bad);color:var(--st-bad);border-radius:6px;padding:6px 8px;font-size:10.5px;cursor:pointer;">✕</button>` : ''}
-    </div>
-  </div>`;
-}
-function compressImageFile(file, maxDim, quality){
-  return new Promise((resolve, reject)=>{
-    const img = new Image();
-    const reader = new FileReader();
-    reader.onload = ()=>{
-      img.onload = ()=>{
-        let w = img.width, h = img.height;
-        if(w>h && w>maxDim){ h = Math.round(h*maxDim/w); w = maxDim; }
-        else if(h>maxDim){ w = Math.round(w*maxDim/h); h = maxDim; }
-        const canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-      img.onerror = reject;
-      img.src = reader.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-async function downloadCPPhoto(cp, field, tag){
-  if(!cp[field]) return;
-  const filename = `${cp.name}(${tag}).jpg`;
-  try{
-    // data URL을 Blob으로 바꿔서 다운로드하면 기기/브라우저별 차이가 훨씬 적음
-    const res = await fetch(cp[field]);
-    const blob = await res.blob();
-    const blobUrl = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = blobUrl;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(()=>URL.revokeObjectURL(blobUrl), 4000);
-  }catch(err){
-    console.error('사진 다운로드 실패:', err);
-    // 자동 저장이 막힌 기종을 위한 수동 저장 폴백: 새 탭에서 열어 길게 눌러 저장하도록 안내
-    window.open(cp[field], '_blank');
-    showToast('자동 저장이 안 되면 새로 열린 사진을 길게 눌러 "이미지 저장"을 선택해주세요');
-  }
-}
-function bindCPPhotoSlot(cp, field, tag){
-  const input = document.getElementById(`cp-${field}-input`);
-  if(input){
-    input.addEventListener('change', async (e)=>{
-      const file = e.target.files[0];
-      if(!file) return;
-      showToast('사진 처리 중...');
-      try{
-        const dataUrl = await compressImageFile(file, 1280, 0.75);
-        cp[field] = dataUrl;
-        await saveState();
-        renderCPDetail();
-        downloadCPPhoto(cp, field, tag); // 촬영과 동시에 기기(핸드폰)에도 자동 저장
-        showToast(`${cp.name}(${tag}) 사진 저장 및 다운로드됨`);
-      }catch(err){
-        console.error(err);
-        showToast('사진 처리 중 오류가 발생했습니다');
-      }
-      e.target.value = '';
-    });
-  }
-  const thumb = document.getElementById(`cp-${field}-thumb`);
-  if(thumb && cp[field]){
-    thumb.addEventListener('click', ()=>{
-      window.open(cp[field], '_blank');
-    });
-  }
-  const dlBtn = document.getElementById(`cp-${field}-dl`);
-  if(dlBtn){
-    dlBtn.addEventListener('click', ()=>downloadCPPhoto(cp, field, tag));
-  }
-  const delBtn = document.getElementById(`cp-${field}-del`);
-  if(delBtn){
-    delBtn.addEventListener('click', async ()=>{
-      if(!confirm(`${cp.name}(${tag}) 사진을 삭제할까요?`)) return;
-      cp[field] = null;
-      await saveState();
-      renderCPDetail();
-      showToast('사진이 삭제되었습니다');
-    });
-  }
-}
 
 function renderCPDetail(){
   const panel = document.getElementById('cpDetailPanel');
@@ -729,14 +626,6 @@ function renderCPDetail(){
       </div>
     </div>
 
-    <div class="field">
-      <label>사진 (근경 · 원경)</label>
-      <div style="display:flex;gap:8px;">
-        ${cpPhotoSlotHtml(cp, 'photoNear', '근', '근경')}
-        ${cpPhotoSlotHtml(cp, 'photoFar', '원', '원경')}
-      </div>
-    </div>
-
     <div style="display:flex;gap:8px;margin-top:16px;">
       <button id="cpDetailBottomClose" style="flex:1;background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);border-radius:7px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;">닫기</button>
       <button id="cpDetailDeleteBtn" style="flex:1;background:rgba(211,47,47,0.1);border:1px solid var(--st-bad);color:var(--st-bad);border-radius:7px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;">삭제</button>
@@ -745,8 +634,6 @@ function renderCPDetail(){
   document.getElementById('cpDetailCloseBtn').addEventListener('click', deselectControlPoint);
   document.getElementById('cpDetailBottomClose').addEventListener('click', deselectControlPoint);
   document.getElementById('cpDetailDeleteBtn').addEventListener('click', ()=>deleteControlPoint(cp.name));
-  bindCPPhotoSlot(cp, 'photoNear', '근');
-  bindCPPhotoSlot(cp, 'photoFar', '원');
 
   document.getElementById('cp-status').addEventListener('change', async (e)=>{
     cp.status = e.target.value;
