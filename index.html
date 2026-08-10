@@ -369,8 +369,14 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
       </div>
       <div id="statusCPView" style="display:none;">
         <div class="side-section" style="padding-bottom:10px;">
-          <div style="font-size:12px;font-weight:700;color:var(--text-dim);">
+          <div style="font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:8px;">
             기준점 <span id="cpCount">0</span>개 · 미조사 <span id="cpUnsurveyedCount" style="color:#9AA6B2;">0</span> · 존재 <span id="cpExistCount" style="color:#8B5CF6;">0</span> · 망실 <span id="cpLostCount" style="color:#E5484D;">0</span>
+          </div>
+          <div class="filter-tabs" id="cpFilterTabs">
+            <div class="ftab active" data-cf="all">전체</div>
+            <div class="ftab" data-cf="미조사">미조사</div>
+            <div class="ftab" data-cf="존재">존재</div>
+            <div class="ftab" data-cf="망실">망실</div>
           </div>
         </div>
         <div class="list-wrap" id="cpStatusListSlot"></div>
@@ -387,6 +393,23 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
         <button id="statsShowRouteBtn" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:7px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;">이 날짜 경로 보기</button>
       </div>
       <div id="statsDateListWrap" style="padding:0 14px 14px;font-size:12px;"></div>
+
+      <div class="side-section" style="border-top:1px solid var(--border);padding-top:14px;">
+        <label style="font-size:11px;color:var(--text-dim);font-weight:700;display:block;margin-bottom:10px;">기준점 현황</label>
+        <div style="font-size:12.5px;color:var(--text-dim);margin-bottom:10px;line-height:1.6;">
+          전체 <b style="color:var(--text);" id="cpStatsTotal">0</b>개 · 존재 <b style="color:#8B5CF6;" id="cpStatsExist">0</b>개 (<span id="cpStatsPct">0</span>%)
+        </div>
+        <div style="display:flex;height:8px;border-radius:5px;overflow:hidden;background:var(--panel-2);margin-bottom:8px;">
+          <div id="cpStatsBarExist" style="background:#8B5CF6;"></div>
+          <div id="cpStatsBarLost" style="background:#E5484D;"></div>
+          <div id="cpStatsBarUnsurveyed" style="background:#9AA6B2;"></div>
+        </div>
+        <div style="display:flex;gap:10px;font-size:10.5px;color:var(--text-dim);">
+          <span><i class="dot" style="background:#9AA6B2;"></i>미조사 <b id="cpStatsUnsurveyed" style="color:var(--text);">0</b></span>
+          <span><i class="dot" style="background:#8B5CF6;"></i>존재 <b id="cpStatsExist2" style="color:var(--text);">0</b></span>
+          <span><i class="dot" style="background:#E5484D;"></i>망실 <b id="cpStatsLost" style="color:var(--text);">0</b></span>
+        </div>
+      </div>
 
       <div class="side-section" style="border-top:1px solid var(--border);padding-top:14px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
@@ -474,7 +497,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v7.0 · 2026-08-06';
+const APP_VERSION = 'v7.1 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -967,12 +990,19 @@ document.getElementById('cpFileInput').addEventListener('change', async (e)=>{
 });
 
 let cpSearchTerm = '';
+let cpFilterStatus = 'all';
 let _lastCPListSig = null;
 function cpStatusColor(status){
   return status==='망실' ? '#E5484D' : (status==='존재' ? '#8B5CF6' : '#9AA6B2');
 }
 function cpStatusLabel(status){
   return status==='망실' ? '망실' : (status==='존재' ? '존재' : '미조사');
+}
+function getFilteredCPs(){
+  const all = state.controlPoints || [];
+  if(cpFilterStatus==='all') return all;
+  if(cpFilterStatus==='미조사') return all.filter(cp=>!cp.status || cp.status==='미조사');
+  return all.filter(cp=>cp.status===cpFilterStatus);
 }
 function renderCPList(){
   const list = document.getElementById('cpList');
@@ -992,13 +1022,14 @@ function renderCPList(){
     return;
   }
   const term = cpSearchTerm.trim().toLowerCase();
-  const filtered = term ? all.filter(cp=>cp.name.toLowerCase().includes(term)) : all;
+  const byStatus = getFilteredCPs();
+  const filtered = term ? byStatus.filter(cp=>cp.name.toLowerCase().includes(term)) : byStatus;
   if(!filtered.length){
-    list.innerHTML = '<div class="empty-note">검색 결과가 없습니다.</div>';
+    list.innerHTML = '<div class="empty-note">조건에 맞는 기준점이 없습니다.</div>';
     _lastCPListSig = null;
     return;
   }
-  const sig = term+'|'+filtered.map(cp=>cp.name+cp.status+cp.lossReason+cp.lossReasonNote).join(';');
+  const sig = cpFilterStatus+'|'+term+'|'+filtered.map(cp=>cp.name+cp.status+cp.lossReason+cp.lossReasonNote).join(';');
   if(sig === _lastCPListSig) return;
   _lastCPListSig = sig;
   list.innerHTML = filtered.map((cp)=>{
@@ -1070,6 +1101,24 @@ function renderStatsModal(){
   if(dates.includes(prevVal)) sel.value = prevVal;
   renderStatsDateList();
   renderPeriodTable();
+  renderCPStats();
+}
+function renderCPStats(){
+  const all = state.controlPoints || [];
+  const cpTotal = all.length;
+  const cpUnsurveyed = all.filter(cp=>!cp.status || cp.status==='미조사').length;
+  const cpExist = all.filter(cp=>cp.status==='존재').length;
+  const cpLost = all.filter(cp=>cp.status==='망실').length;
+  document.getElementById('cpStatsTotal').textContent = cpTotal;
+  document.getElementById('cpStatsExist').textContent = cpExist;
+  document.getElementById('cpStatsPct').textContent = cpTotal ? Math.round(cpExist/cpTotal*100) : 0;
+  document.getElementById('cpStatsUnsurveyed').textContent = cpUnsurveyed;
+  document.getElementById('cpStatsExist2').textContent = cpExist;
+  document.getElementById('cpStatsLost').textContent = cpLost;
+  const pct = (n)=> cpTotal ? (n/cpTotal*100)+'%' : '0%';
+  document.getElementById('cpStatsBarExist').style.width = pct(cpExist);
+  document.getElementById('cpStatsBarLost').style.width = pct(cpLost);
+  document.getElementById('cpStatsBarUnsurveyed').style.width = pct(cpUnsurveyed);
 }
 function renderStatsDateList(){
   const sel = document.getElementById('statsDateSelect');
@@ -1392,9 +1441,18 @@ document.getElementById('filterTabs').addEventListener('click', (e)=>{
   const el = e.target.closest('.ftab');
   if(!el) return;
   filterStatus = el.dataset.f;
-  document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('#filterTabs .ftab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
   renderAll();
+});
+document.getElementById('cpFilterTabs').addEventListener('click', (e)=>{
+  const el = e.target.closest('.ftab');
+  if(!el) return;
+  cpFilterStatus = el.dataset.cf;
+  document.querySelectorAll('#cpFilterTabs .ftab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  _lastCPListSig = null;
+  renderCPList();
 });
 function switchToMapView(){
   if(viewMode==='map') return;
