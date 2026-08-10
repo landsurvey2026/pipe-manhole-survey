@@ -474,7 +474,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v6.9 · 2026-08-06';
+const APP_VERSION = 'v7.0 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -1265,6 +1265,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', async ()=>{
       '맨홀번호': m.id, 'X': m.x, 'Y': m.y, 'Z': m.z,
       '진행상태': m.status, '라이다촬영': m.lidar ? 'Y' : 'N',
       '인버트': m.invert, '사다리': m.ladder, '추락방지시설': m.fall, '계측센서': m.sensor,
+      '맨홀상태여부': m.condition==='기타' ? (m.conditionNote||'기타') : (m.condition||''),
       '조사자': m.inspector || '', '조사일자': m.date || '', '비고': m.note || ''
     };
   }).filter(Boolean);
@@ -2316,14 +2317,14 @@ function renderTable(){
   }
   const sig = ids.length+'|'+selectedId+'|'+ids.map(id=>{
     const m = state.manholes[id];
-    return id+m.status+m.lidar+m.invert+m.ladder+m.fall+m.sensor+m.inspector+m.date+m.x+m.y+m.z;
+    return id+m.status+m.lidar+m.invert+m.ladder+m.fall+m.sensor+m.condition+m.conditionNote+m.inspector+m.date+m.x+m.y+m.z;
   }).join(';');
   if(sig === _lastTableSig) return;
   _lastTableSig = sig;
 
   if(!host.querySelector('table')){
     host.innerHTML = `<div class="table-wrap"><table>
-      <thead><tr><th></th><th>맨홀번호</th><th>X</th><th>Y</th><th>Z</th><th>상태</th><th>라이다</th><th>인버트</th><th>사다리</th><th>추락방지</th><th>계측센서</th><th>조사자</th><th>일자</th></tr></thead>
+      <thead><tr><th></th><th>맨홀번호</th><th>X</th><th>Y</th><th>Z</th><th>상태</th><th>라이다</th><th>인버트</th><th>사다리</th><th>추락방지</th><th>계측센서</th><th>맨홀상태여부</th><th>조사자</th><th>일자</th></tr></thead>
       <tbody id="tableBody"></tbody>
     </table></div>`;
     host.querySelector('table').addEventListener('click', (e)=>{
@@ -2347,6 +2348,7 @@ function renderTable(){
         <td>${m.id}</td><td>${fmtCoord(m.x)}</td><td>${fmtCoord(m.y)}</td><td>${fmtCoord(m.z)}</td>
         <td>${m.status}</td><td>${m.lidar?'Y':'-'}</td>
         <td>${m.invert}</td><td>${m.ladder}</td><td>${m.fall}</td><td>${m.sensor||'없음'}</td>
+        <td>${m.condition==='기타' ? (m.conditionNote||'기타') : (m.condition||'-')}</td>
         <td>${m.inspector||'-'}</td><td>${m.date||'-'}</td>
       </tr>`;
     }
@@ -2419,6 +2421,20 @@ function renderDetailContent(panel){
       <label>계측센서 유무 (육안조사)</label>
       <select id="f-sensor">${presenceOptions(m.sensor)}</select>
     </div>
+    <div class="field">
+      <label>맨홀상태여부</label>
+      <select id="f-condition">
+        <option value="" ${!m.condition?'selected':''}>없음</option>
+        <option value="매몰" ${m.condition==='매몰'?'selected':''}>매몰</option>
+        <option value="개폐불가" ${m.condition==='개폐불가'?'selected':''}>개폐불가</option>
+        <option value="측량불가" ${m.condition==='측량불가'?'selected':''}>측량불가</option>
+        <option value="기타" ${m.condition==='기타'?'selected':''}>기타</option>
+      </select>
+    </div>
+    <div class="field" id="condition-note-wrap" style="display:${m.condition==='기타'?'block':'none'};">
+      <label>기타 사유 입력</label>
+      <input type="text" id="f-condition-note" value="${m.conditionNote||''}" placeholder="사유를 입력해주세요">
+    </div>
 
     <hr class="sep">
 
@@ -2476,6 +2492,25 @@ function renderDetailContent(panel){
   bind('f-inspector','inspector');
   bind('f-date','date');
   bind('f-note','note','input');
+
+  document.getElementById('f-condition').addEventListener('change', async (e)=>{
+    const m = state.manholes[selectedId];
+    m.condition = e.target.value;
+    if(m.condition!=='기타') m.conditionNote = '';
+    if(!m.enteredAt) m.enteredAt = Date.now();
+    await saveState();
+    renderDetail();
+    refreshMarkerAppearance(selectedId);
+    showToast('저장됨');
+  });
+  const conditionNoteInput = document.getElementById('f-condition-note');
+  if(conditionNoteInput){
+    conditionNoteInput.addEventListener('input', async (e)=>{
+      const m = state.manholes[selectedId];
+      m.conditionNote = e.target.value;
+      await saveState();
+    });
+  }
 }
 
 function renderAll(){
