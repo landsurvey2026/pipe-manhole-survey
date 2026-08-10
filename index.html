@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/dist/dxf-parser.js" defer></script>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -318,12 +319,12 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
       </div>
       <div class="side-section">
         <div style="font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:8px;">행정경계 업로드</div>
-        <div style="font-size:10.5px;color:var(--text-dim);margin-bottom:8px;line-height:1.4;">지금은 임시로 브이월드 행정경계(구/군·동)를 지도 위 버튼으로 켜고 끌 수 있어요. 정확한 경계(CAD 도면 등)가 준비되면 <b>GeoJSON</b>으로 변환해서 여기에 올려주세요 — QGIS나 AutoCAD에서 GeoJSON으로 내보내기(export) 하시면 됩니다. 올리면 주황색 점선으로 표시됩니다.</div>
+        <div style="font-size:10.5px;color:var(--text-dim);margin-bottom:8px;line-height:1.4;">지금은 임시로 브이월드 행정경계(구/군·동)를 지도 위 버튼으로 켜고 끌 수 있어요. <b>CAD(.dxf) 도면을 그대로 올리시면 자동으로 변환</b>해서 지도 위에 표시합니다 (좌표계는 맨홀 좌표와 같은 중부원점(EPSG:5186) 기준이어야 정확히 맞습니다). GeoJSON 파일도 그대로 업로드 가능해요. 올리면 주황색 점선으로 표시됩니다.</div>
         <label class="upload-box" id="boundaryUploadBox">
-          <input type="file" id="boundaryFileInput" accept=".geojson,.json">
+          <input type="file" id="boundaryFileInput" accept=".dxf,.geojson,.json">
           <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h7l2 2h9v13a2 2 0 0 1-2 2H3z"></path></svg></div>
-          <div class="t1">경계 GeoJSON 업로드</div>
-          <div class="t2">.geojson / .json 지원</div>
+          <div class="t1">경계 파일 업로드</div>
+          <div class="t2">.dxf (CAD) / .geojson / .json 지원</div>
         </label>
         <button id="clearBoundaryBtn" style="width:100%;margin-top:8px;background:rgba(211,47,47,0.08);border:1px solid var(--st-bad);color:var(--st-bad);border-radius:7px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">🗑 업로드한 경계 삭제</button>
       </div>
@@ -501,7 +502,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v7.6 · 2026-08-06';
+const APP_VERSION = 'v7.7 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -1305,22 +1306,64 @@ document.getElementById('resetCPStatusBtn').addEventListener('click', async ()=>
   showToast(`기준점 ${cnt}개 상태가 미조사로 초기화되었습니다`);
 });
 
-/* ---------- 행정경계 GeoJSON 업로드 (추후 CAD 변환분 대체 예정) ---------- */
+/* ---------- 행정경계 업로드: CAD(.dxf) 또는 GeoJSON 지원 ---------- */
+function dxfEntityToLatLngs(ent){
+  let verts = null;
+  if((ent.type==='LWPOLYLINE' || ent.type==='POLYLINE') && ent.vertices){
+    verts = ent.vertices;
+  }else if(ent.type==='LINE' && ent.vertices){
+    verts = ent.vertices;
+  }else if(ent.type==='CIRCLE' && ent.center && isFinite(ent.radius)){
+    // 원은 다각형으로 근사
+    verts = [];
+    for(let i=0;i<=32;i++){
+      const t = (i/32)*Math.PI*2;
+      verts.push({ x: ent.center.x + ent.radius*Math.cos(t), y: ent.center.y + ent.radius*Math.sin(t) });
+    }
+  }
+  if(!verts) return null;
+  // CAD 도면의 X=동서(횡거/Easting), Y=남북(종거/Northing) → toLatLng(x=남북,y=동서) 순서로 변환
+  const pts = verts.map(v=>toLatLng(v.y, v.x)).filter(Boolean);
+  return pts.length>1 ? pts : null;
+}
+function dxfToGeoJSON(dxf){
+  const features = [];
+  (dxf.entities || []).forEach(ent=>{
+    const pts = dxfEntityToLatLngs(ent);
+    if(!pts) return;
+    features.push({
+      type:'Feature', properties:{},
+      geometry:{ type:'LineString', coordinates: pts.map(p=>[p[1],p[0]]) } // GeoJSON은 [lng,lat] 순서
+    });
+  });
+  return { type:'FeatureCollection', features };
+}
 document.getElementById('boundaryFileInput').addEventListener('change', async (e)=>{
   const file = e.target.files[0];
   if(!file) return;
+  const isDxf = /\.dxf$/i.test(file.name);
   try{
-    const text = await file.text();
-    const geo = JSON.parse(text);
-    if(!geo || !geo.type){ throw new Error('invalid geojson'); }
+    let geo;
+    if(isDxf){
+      showToast('CAD(DXF) 파일 변환 중...');
+      const text = await file.text();
+      const parser = new DxfParser();
+      const dxf = parser.parseSync(text);
+      geo = dxfToGeoJSON(dxf);
+      if(!geo.features.length){ throw new Error('DXF에서 표시 가능한 선(LINE/POLYLINE)을 찾지 못했습니다'); }
+    }else{
+      const text = await file.text();
+      geo = JSON.parse(text);
+      if(!geo || !geo.type){ throw new Error('invalid geojson'); }
+    }
     state.boundaryGeoJSON = geo;
     await saveState();
     initLeaflet();
     renderCustomBoundary();
-    showToast('행정경계가 업로드되었습니다');
+    showToast(isDxf ? `CAD 경계가 업로드되었습니다 (${geo.features.length}개 선)` : '행정경계가 업로드되었습니다');
   }catch(err){
     console.error(err);
-    showToast('GeoJSON 파일을 읽지 못했습니다. 형식을 확인해주세요.');
+    showToast(isDxf ? 'DXF 파일을 변환하지 못했습니다: '+(err.message||'') : 'GeoJSON 파일을 읽지 못했습니다. 형식을 확인해주세요.');
   }
   e.target.value = '';
 });
