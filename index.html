@@ -474,7 +474,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v6.6 · 2026-08-06';
+const APP_VERSION = 'v6.7 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -626,6 +626,15 @@ function compressImageFile(file, maxDim, quality){
     reader.readAsDataURL(file);
   });
 }
+function downloadCPPhoto(cp, field, tag){
+  if(!cp[field]) return;
+  const a = document.createElement('a');
+  a.href = cp[field];
+  a.download = `${cp.name}(${tag}).jpg`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
 function bindCPPhotoSlot(cp, field, tag){
   const input = document.getElementById(`cp-${field}-input`);
   if(input){
@@ -638,7 +647,8 @@ function bindCPPhotoSlot(cp, field, tag){
         cp[field] = dataUrl;
         await saveState();
         renderCPDetail();
-        showToast(`${cp.name}(${tag}) 사진 저장됨`);
+        downloadCPPhoto(cp, field, tag); // 촬영과 동시에 기기(핸드폰)에도 자동 저장
+        showToast(`${cp.name}(${tag}) 사진 저장 및 다운로드됨`);
       }catch(err){
         console.error(err);
         showToast('사진 처리 중 오류가 발생했습니다');
@@ -654,14 +664,7 @@ function bindCPPhotoSlot(cp, field, tag){
   }
   const dlBtn = document.getElementById(`cp-${field}-dl`);
   if(dlBtn){
-    dlBtn.addEventListener('click', ()=>{
-      const a = document.createElement('a');
-      a.href = cp[field];
-      a.download = `${cp.name}(${tag}).jpg`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    });
+    dlBtn.addEventListener('click', ()=>downloadCPPhoto(cp, field, tag));
   }
   const delBtn = document.getElementById(`cp-${field}-del`);
   if(delBtn){
