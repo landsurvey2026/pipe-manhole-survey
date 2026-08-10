@@ -63,6 +63,7 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
 .menu-modal-backdrop{display:none;position:fixed;inset:0;background:rgba(15,20,26,0.35);z-index:900;}
 .menu-modal-backdrop.open{display:block;}
 .menu-modal{display:none;flex-direction:column;position:fixed;top:78px;left:20px;width:320px;max-height:calc(100vh - 110px);background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(10,15,25,0.35), 0 2px 8px rgba(10,15,25,0.15);z-index:901;overflow:hidden;border-top:3px solid var(--accent);}
+.menu-modal.stats-wide{width:480px;max-height:calc(100vh - 60px);}
 .menu-modal.open{display:flex;}
 .menu-modal-header{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
 .menu-modal-title{font-weight:700;font-size:13.5px;color:var(--text);}
@@ -410,6 +411,11 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
       </div>
 
       <div class="side-section" style="border-top:1px solid var(--border);padding-top:14px;">
+        <label style="font-size:11px;color:var(--text-dim);font-weight:700;display:block;margin-bottom:10px;">맨홀상태여부</label>
+        <div id="conditionStatsWrap" style="display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
+
+      <div class="side-section" style="border-top:1px solid var(--border);padding-top:14px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
           <label style="font-size:11px;color:var(--text-dim);font-weight:700;">기간별 진행현황</label>
           <div class="sub-tabs" id="periodTabs">
@@ -495,7 +501,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v7.5 · 2026-08-06';
+const APP_VERSION = 'v7.6 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -780,6 +786,7 @@ function showMenu(name){
   document.getElementById('menuSearch').style.display = name==='search' ? 'flex' : 'none';
   document.getElementById('menuStatus').style.display = name==='status' ? 'flex' : 'none';
   document.getElementById('menuStats').style.display = name==='stats' ? 'flex' : 'none';
+  document.getElementById('menuModal').classList.toggle('stats-wide', name==='stats');
 
   if(name==='search'){
     renderUnifiedSearch();
@@ -1104,6 +1111,31 @@ function renderStatsModal(){
   renderStatsDateList();
   renderPeriodTable();
   renderCPStats();
+  renderConditionStats(all, total);
+}
+function renderConditionStats(all, total){
+  const wrap = document.getElementById('conditionStatsWrap');
+  const categories = ['없음','매몰','개폐불가','측량불가','기타'];
+  const colors = {'없음':'#9AA6B2','매몰':'#B5651D','개폐불가':'#D32F2F','측량불가':'#F9A825','기타':'#607D8B'};
+  const counts = {};
+  categories.forEach(c=>counts[c]=0);
+  all.forEach(m=>{
+    const key = m.condition && categories.includes(m.condition) ? m.condition : '없음';
+    counts[key]++;
+  });
+  wrap.innerHTML = categories.map(c=>{
+    const n = counts[c];
+    const pct = total ? Math.round(n/total*100) : 0;
+    return `<div>
+      <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text-dim);margin-bottom:3px;">
+        <span><i class="dot" style="background:${colors[c]};"></i>${c}</span>
+        <span style="color:var(--text);font-weight:600;">${n}개 (${pct}%)</span>
+      </div>
+      <div style="height:6px;border-radius:4px;background:var(--panel-2);overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:${colors[c]};"></div>
+      </div>
+    </div>`;
+  }).join('');
 }
 function renderCPStats(){
   const all = state.controlPoints || [];
