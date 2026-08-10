@@ -497,7 +497,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v7.1 · 2026-08-06';
+const APP_VERSION = 'v7.2 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -1036,8 +1036,8 @@ function renderCPList(){
     const c = cpStatusColor(cp.status);
     const i = all.indexOf(cp);
     return `<div class="mh-card" data-i="${i}" title="${cp.name}">
-      <span class="mh-id" style="color:${c};">▲ ${cp.name}</span>
-      <div class="mh-status-row"><span style="font-weight:700;color:${c};">${cpStatusLabel(cp.status)}</span></div>
+      <span class="mh-id">${cp.name}</span>
+      <div class="mh-status-row"><span class="dot" style="background:${c}"></span>${cpStatusLabel(cp.status)}</div>
     </div>`;
   }).join('');
 }
@@ -1619,8 +1619,8 @@ function renderUnifiedSearch(){
   cpMatches.forEach(cp=>{
     const c = cpStatusColor(cp.status);
     html += `<div class="mh-card" data-type="cp" data-name="${cp.name}" title="${cp.name}">
-      <span class="mh-id" style="color:${c};">▲ ${cp.name}</span>
-      <div class="mh-status-row"><span style="font-weight:700;color:${c};">${cpStatusLabel(cp.status)}</span></div>
+      <span class="mh-id">${cp.name}</span>
+      <div class="mh-status-row"><span class="dot" style="background:${c}"></span>${cpStatusLabel(cp.status)}</div>
     </div>`;
   });
   slot.innerHTML = html || '<div class="empty-note">일치하는 맨홀·기준점이 없습니다.<br>주소로 검색 중이면 잠시만 기다려주세요.</div>';
