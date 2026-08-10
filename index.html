@@ -474,7 +474,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v6.7 · 2026-08-06';
+const APP_VERSION = 'v6.8 · 2026-08-06';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -626,14 +626,27 @@ function compressImageFile(file, maxDim, quality){
     reader.readAsDataURL(file);
   });
 }
-function downloadCPPhoto(cp, field, tag){
+async function downloadCPPhoto(cp, field, tag){
   if(!cp[field]) return;
-  const a = document.createElement('a');
-  a.href = cp[field];
-  a.download = `${cp.name}(${tag}).jpg`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  const filename = `${cp.name}(${tag}).jpg`;
+  try{
+    // data URL을 Blob으로 바꿔서 다운로드하면 기기/브라우저별 차이가 훨씬 적음
+    const res = await fetch(cp[field]);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(blobUrl), 4000);
+  }catch(err){
+    console.error('사진 다운로드 실패:', err);
+    // 자동 저장이 막힌 기종을 위한 수동 저장 폴백: 새 탭에서 열어 길게 눌러 저장하도록 안내
+    window.open(cp[field], '_blank');
+    showToast('자동 저장이 안 되면 새로 열린 사진을 길게 눌러 "이미지 저장"을 선택해주세요');
+  }
 }
 function bindCPPhotoSlot(cp, field, tag){
   const input = document.getElementById(`cp-${field}-input`);
