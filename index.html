@@ -512,7 +512,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v8.1 · 2026-09-08';
+const APP_VERSION = 'v8.2 · 2026-09-08';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -601,6 +601,7 @@ async function resetManholeSurvey(id){
   m.ladder = '없음';
   m.fall = '없음';
   m.sensor = '없음';
+  m.odor = '없음';
   m.conditions = getConditions(m).includes('추가맨홀') ? ['추가맨홀'] : []; // 추가맨홀 여부(생성 방식)는 유지, 나머지 조사 소견은 초기화
   delete m.condition;
   m.conditionNote = '';
@@ -862,7 +863,7 @@ document.getElementById('statusSubTabs').addEventListener('click', (e)=>{
 });
 
 function blankRecord(id,x,y,z){
-  return {id,x,y,z,status:'미착수',lidar:false,invert:'없음',ladder:'없음',fall:'없음',sensor:'없음',conditions:[],conditionNote:'',inspector:'',date:'',note:''};
+  return {id,x,y,z,status:'미착수',lidar:false,invert:'없음',ladder:'없음',fall:'없음',sensor:'없음',odor:'없음',conditions:[],conditionNote:'',inspector:'',date:'',note:''};
 }
 
 let firebaseHealthy = null; // null=아직모름, true=정상, false=실패(권한/규칙 문제 가능성)
@@ -1426,7 +1427,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', async ()=>{
     return {
       '맨홀번호': m.id, 'X': m.x, 'Y': m.y, 'Z': m.z,
       '진행상태': m.status, '라이다촬영': m.lidar ? 'Y' : 'N',
-      '인버트': m.invert, '사다리': m.ladder, '추락방지시설': m.fall, '계측센서': m.sensor,
+      '인버트': m.invert, '사다리': m.ladder, '추락방지시설': m.fall, '계측센서': m.sensor, '악취방지유무': m.odor||'없음',
       '맨홀상태여부': formatConditions(m),
       '조사자': m.inspector || '', '조사일자': m.date || '', '비고': m.note || ''
     };
@@ -2536,14 +2537,14 @@ function renderTable(){
   }
   const sig = ids.length+'|'+selectedId+'|'+ids.map(id=>{
     const m = state.manholes[id];
-    return id+m.status+m.lidar+m.invert+m.ladder+m.fall+m.sensor+getConditions(m).join('|')+m.conditionNote+m.inspector+m.date+m.x+m.y+m.z;
+    return id+m.status+m.lidar+m.invert+m.ladder+m.fall+m.sensor+m.odor+getConditions(m).join('|')+m.conditionNote+m.inspector+m.date+m.x+m.y+m.z;
   }).join(';');
   if(sig === _lastTableSig) return;
   _lastTableSig = sig;
 
   if(!host.querySelector('table')){
     host.innerHTML = `<div class="table-wrap"><table>
-      <thead><tr><th></th><th>맨홀번호</th><th>X</th><th>Y</th><th>Z</th><th>상태</th><th>라이다</th><th>인버트</th><th>사다리</th><th>추락방지</th><th>계측센서</th><th>맨홀상태여부</th><th>조사자</th><th>일자</th></tr></thead>
+      <thead><tr><th></th><th>맨홀번호</th><th>X</th><th>Y</th><th>Z</th><th>상태</th><th>라이다</th><th>인버트</th><th>사다리</th><th>추락방지</th><th>계측센서</th><th>악취방지</th><th>맨홀상태여부</th><th>조사자</th><th>일자</th></tr></thead>
       <tbody id="tableBody"></tbody>
     </table></div>`;
     host.querySelector('table').addEventListener('click', (e)=>{
@@ -2566,7 +2567,7 @@ function renderTable(){
         <td style="color:${manholeColorInfo(m).color};font-weight:700;">●</td>
         <td>${m.id}</td><td>${fmtCoord(m.x)}</td><td>${fmtCoord(m.y)}</td><td>${fmtCoord(m.z)}</td>
         <td>${m.status}</td><td>${m.lidar?'Y':'-'}</td>
-        <td>${m.invert}</td><td>${m.ladder}</td><td>${m.fall}</td><td>${m.sensor||'없음'}</td>
+        <td>${m.invert}</td><td>${m.ladder}</td><td>${m.fall}</td><td>${m.sensor||'없음'}</td><td>${m.odor||'없음'}</td>
         <td>${formatConditions(m) || '-'}</td>
         <td>${m.inspector||'-'}</td><td>${m.date||'-'}</td>
       </tr>`;
@@ -2639,6 +2640,10 @@ function renderDetailContent(panel){
     <div class="field">
       <label>계측센서 유무 (육안조사)</label>
       <select id="f-sensor">${presenceOptions(m.sensor)}</select>
+    </div>
+    <div class="field">
+      <label>악취방지유무 (육안조사)</label>
+      <select id="f-odor">${presenceOptions(m.odor)}</select>
     </div>
     <div class="field">
       <label>맨홀상태여부 (중복 선택 가능)</label>
@@ -2730,6 +2735,7 @@ function renderDetailContent(panel){
   bind('f-ladder','ladder');
   bind('f-fall','fall');
   bind('f-sensor','sensor');
+  bind('f-odor','odor');
   bind('f-inspector','inspector');
   bind('f-date','date');
   bind('f-note','note','input');
