@@ -162,7 +162,7 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
 }
 .leaflet-control-attribution{font-size:10px;color:var(--text-dim);background:rgba(255,255,255,0.85);}
 .mh-label{background:rgba(255,255,255,0.92);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--text);box-shadow:none;}
-.mh-label-big{font-size:21px;padding:3px 9px;border-radius:6px;border:2px solid var(--accent);background:#fff;color:var(--accent);font-weight:800;}
+.mh-label-big{font-size:11.5px;padding:1px 6px;border-radius:4px;border:1.5px solid var(--accent);background:#fff;color:var(--accent);font-weight:800;}
 @keyframes searchFlashIcon{
   0%,100%{ filter: drop-shadow(0 0 0px rgba(255,196,0,0)); }
   50%{ filter: drop-shadow(0 0 12px rgba(255,196,0,1)) drop-shadow(0 0 6px rgba(255,196,0,1)); }
@@ -534,7 +534,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v8.5 · 2026-09-08';
+const APP_VERSION = 'v8.6 · 2026-09-08';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -1262,6 +1262,21 @@ document.getElementById('periodTabs').addEventListener('click', (e)=>{
 
 /* ---------- 현황(맨홀조사) 탭: 조사일자별 경로 보기 (다중선택) + 라인 시뮬레이션 ---------- */
 let dayViewDates = []; // 다중 선택된 조사일자 목록
+let dayViewPolylines = []; // 현재 그려진 날짜별 하이라이트선 (진행방향 흐름 애니메이션 대상)
+let dayViewAnimTimer = null;
+function startDayViewLineAnim(){
+  if(dayViewAnimTimer) return;
+  let offset = 0;
+  dayViewAnimTimer = setInterval(()=>{
+    offset = (offset - 1 + 1600) % 1600; // 값이 줄어드는 방향 = 경로 진행방향으로 흐르는 하이라이트 효과
+    dayViewPolylines.forEach(pl=>{
+      if(pl && pl.setStyle) pl.setStyle({dashOffset: String(offset)});
+    });
+  }, 40);
+}
+function stopDayViewLineAnim(){
+  if(dayViewAnimTimer){ clearInterval(dayViewAnimTimer); dayViewAnimTimer = null; }
+}
 const DAY_ROUTE_COLORS = ['#0B63CE','#E53935','#00C853','#FB8C00','#8E24AA','#00ACC1','#D81B60','#6D4C41','#43A047','#F9A825'];
 function getDayOrderIds(date){
   const ids = state.order.filter(id=>state.manholes[id] && state.manholes[id].date===date);
@@ -2473,7 +2488,7 @@ function manholeColorInfo(m){
 /* 맨홀 마커 스타일 (성능을 위해 캔버스 렌더링되는 원형 마커 사용) */
 function manholeStyle(color, isSel, isActive, big, translucent){
   let radius = isSel ? 11 : 8;
-  if(big) radius = isSel ? 22 : 17;
+  if(big) radius = isSel ? 14 : 11;
   const baseFill = isActive ? 0.95 : 0.22;
   const baseLine = isActive ? 1 : 0.3;
   const factor = translucent ? 0.45 : 1; // 진행중/미착수 반투명 처리
@@ -2547,6 +2562,7 @@ function renderMap(){
 
   const boundsPts = [];
   const dayMemberInfo = {}; // id -> {idx} (선택된 날짜들 중 자신이 속한 날짜 내에서의 순번)
+  dayViewPolylines = [];
   if(dayViewDates.length){
     dayViewDates.slice().sort().forEach(date=>{
       const color = dayViewColorFor(date);
@@ -2554,7 +2570,11 @@ function renderMap(){
       ids.forEach((id, i)=>{ dayMemberInfo[id] = {idx:i}; });
       const linePts = ids.map(id=>toLatLng(state.manholes[id].x, state.manholes[id].y)).filter(Boolean);
       if(linePts.length>1){
-        L.polyline(linePts, {color, weight:4, opacity:0.85, dashArray:'8 8'}).addTo(dayViewLayerGroup);
+        // 바탕선: 은은하게 전체 경로를 표시
+        L.polyline(linePts, {color, weight:7, opacity:0.18, lineCap:'round'}).addTo(dayViewLayerGroup);
+        // 진행방향 하이라이트선: 점선이 진행방향으로 흐르듯 애니메이션됨
+        const flowLine = L.polyline(linePts, {color, weight:4, opacity:0.95, dashArray:'2 14', lineCap:'round'}).addTo(dayViewLayerGroup);
+        dayViewPolylines.push(flowLine);
         // 진행방향 화살표: 각 구간 중간지점에 다음 지점을 향하는 삼각형 표시
         for(let i=0;i<linePts.length-1;i++){
           const p1 = linePts[i], p2 = linePts[i+1];
@@ -2563,16 +2583,17 @@ function renderMap(){
           const angleDeg = Math.atan2(dLng, dLat) * 180/Math.PI; // 북쪽(위) 기준 시계방향 각도 = CSS rotate값과 동일
           const arrowIcon = L.divIcon({
             className:'',
-            html:`<div style="width:16px;height:16px;transform:rotate(${angleDeg}deg);display:flex;align-items:center;justify-content:center;">
-              <svg width="14" height="14" viewBox="0 0 14 14"><polygon points="7,1 13,12 1,12" fill="${color}" stroke="#fff" stroke-width="1.2"/></svg>
+            html:`<div style="width:13px;height:13px;transform:rotate(${angleDeg}deg);display:flex;align-items:center;justify-content:center;">
+              <svg width="11" height="11" viewBox="0 0 14 14"><polygon points="7,1 13,12 1,12" fill="${color}" stroke="#fff" stroke-width="1.2"/></svg>
             </div>`,
-            iconSize:[16,16], iconAnchor:[8,8]
+            iconSize:[13,13], iconAnchor:[6,6]
           });
           L.marker(mid, {icon:arrowIcon, interactive:false}).addTo(dayViewLayerGroup);
         }
       }
     });
   }
+  if(dayViewPolylines.length) startDayViewLineAnim(); else stopDayViewLineAnim();
 
   const seenIds = new Set();
   markerRefs = [];
@@ -2622,7 +2643,7 @@ function renderMap(){
       entry.marker.unbindTooltip();
       entry.marker.bindTooltip(tooltipText, {
         permanent:true, direction:'top',
-        offset: isDayMember ? [0,-20] : [0,-9],
+        offset: isDayMember ? [0,-14] : [0,-9],
         opacity: isDayMember ? 0.95 : 0.9,
         className: tooltipClass
       });
