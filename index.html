@@ -146,7 +146,8 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
 .mt-group button{background:transparent;border:none;color:var(--text-dim);font-size:11.5px;padding:6px 9px;border-radius:6px;cursor:pointer;font-family:var(--sans);white-space:nowrap;}
 .mt-group button.active{background:var(--accent);color:#fff;font-weight:700;}
 .map-svg{width:100%;height:100%;display:block;}
-.legend{position:absolute;bottom:10px;left:12px;z-index:410;display:flex;gap:12px;background:rgba(18,26,32,0.85);padding:7px 12px;border-radius:8px;border:1px solid var(--border);font-size:10.5px;color:var(--text-dim);}
+.legend{position:absolute;bottom:10px;left:12px;z-index:410;display:flex;flex-wrap:wrap;align-items:center;row-gap:5px;gap:12px;max-width:min(720px,92vw);background:rgba(18,26,32,0.85);padding:7px 12px;border-radius:8px;border:1px solid var(--border);font-size:10.5px;color:var(--text-dim);}
+.legend-sep{width:1px;height:12px;background:rgba(255,255,255,0.22);flex-shrink:0;}
 .dayview-bar{position:absolute;top:56px;left:50%;transform:translateX(-50%);z-index:415;background:rgba(11,99,206,0.95);color:#fff;padding:8px 10px 8px 16px;border-radius:20px;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:10px;box-shadow:0 4px 14px rgba(0,0,0,0.25);white-space:nowrap;}
 .dayview-bar button{background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:14px;padding:5px 13px;font-size:11.5px;cursor:pointer;font-weight:700;}
 .dayview-bar button:hover{background:rgba(255,255,255,0.32);}
@@ -239,7 +240,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
   .map-toolbar{top:6px;left:6px;right:6px;gap:5px;}
   .mt-group{padding:3px;}
   .mt-group button{padding:5px 7px;font-size:10.5px;}
-  .legend{bottom:8px;left:8px;flex-wrap:wrap;max-width:60%;font-size:9.5px;gap:6px;}
+  .legend{bottom:8px;left:8px;flex-wrap:wrap;max-width:88vw;font-size:9.5px;gap:6px;row-gap:4px;}
   .leaflet-top.leaflet-right{top:96px !important;}
 }
 .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
@@ -457,9 +458,14 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
       <button id="dayViewCloseBtn">닫기</button>
     </div>
     <div class="legend">
-      <span><i class="dot" style="background:var(--st-none)"></i>미착수</span>
-      <span><i class="dot" style="background:var(--st-progress)"></i>진행중</span>
       <span><i class="dot" style="background:var(--st-done)"></i>완료</span>
+      <span><i class="dot" style="background:#9AA6B2;opacity:.5"></i>진행중·미착수</span>
+      <span class="legend-sep"></span>
+      <span><i class="dot" style="background:#FBC02D"></i>매몰</span>
+      <span><i class="dot" style="background:#E53935"></i>개폐불가</span>
+      <span><i class="dot" style="background:#1E88E5"></i>추가맨홀</span>
+      <span><i class="dot" style="background:#FB8C00"></i>그외</span>
+      <span class="legend-sep"></span>
       <span style="color:#9AA6B2;">▲ 기준점(미조사)</span>
       <span style="color:#8B5CF6;">▲ 기준점(존재)</span>
       <span style="color:#E5484D;">▲ 기준점(망실)</span>
@@ -502,7 +508,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v7.9 · 2026-09-08';
+const APP_VERSION = 'v8.0 · 2026-09-08';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -536,8 +542,8 @@ function refreshMarkerAppearance(id){
   if(!entry || !m) return;
   const isActive = new Set(getFilteredIds()).has(id);
   const isSel = id===selectedId;
-  const color = STATUS_HEX[m.status] || STATUS_HEX['미착수'];
-  const style = manholeStyle(color, isSel, dayViewDate ? false : isActive, false);
+  const info = manholeColorInfo(m);
+  const style = manholeStyle(info.color, isSel, dayViewDate ? false : isActive, false, info.translucent);
   const styleKey = JSON.stringify(style);
   if(entry.styleKey !== styleKey){ entry.marker.setStyle(style); entry.styleKey = styleKey; }
 }
@@ -1140,7 +1146,7 @@ function renderStatsModal(){
 function renderConditionStats(all, total){
   const wrap = document.getElementById('conditionStatsWrap');
   const categories = ['없음','매몰','개폐불가','측량불가','기타'];
-  const colors = {'없음':'#9AA6B2','매몰':'#B5651D','개폐불가':'#D32F2F','측량불가':'#F9A825','기타':'#607D8B'};
+  const colors = {'없음':'#9AA6B2','매몰':'#FBC02D','개폐불가':'#E53935','측량불가':'#FB8C00','기타':'#FB8C00'};
   const counts = {};
   categories.forEach(c=>counts[c]=0);
   all.forEach(m=>{
@@ -2001,6 +2007,7 @@ function handleMapPlacementClick(latlng){
       state.manholes[id].y = coords.y;
     }else{
       state.manholes[id] = blankRecord(id, coords.x, coords.y, 0);
+      state.manholes[id].addedManually = true; // 지도에서 직접 추가한 맨홀 → '추가맨홀'로 표시
       state.order.push(id);
     }
     saveState();
@@ -2293,17 +2300,31 @@ function renderControlPoints(){
   });
 }
 
+/* 맨홀 색상 우선순위: 맨홀상태여부(매몰/개폐불가/그외/추가맨홀) > 진행상태(완료=초록, 그외=회색 반투명) */
+const CONDITION_COLORS = { '매몰':'#FBC02D', '개폐불가':'#E53935', '측량불가':'#FB8C00', '기타':'#FB8C00' };
+const ADDED_MANUALLY_COLOR = '#1E88E5';
+function manholeColorInfo(m){
+  const condColor = m.condition && CONDITION_COLORS[m.condition];
+  if(condColor) return {color:condColor, translucent:false};
+  if(m.addedManually) return {color:ADDED_MANUALLY_COLOR, translucent:false};
+  if(m.status==='완료') return {color:STATUS_HEX['완료'], translucent:false};
+  return {color:'#9AA6B2', translucent:true}; // 진행중/미착수 → 회색 반투명
+}
+
 /* 맨홀 마커 스타일 (성능을 위해 캔버스 렌더링되는 원형 마커 사용) */
-function manholeStyle(color, isSel, isActive, big){
+function manholeStyle(color, isSel, isActive, big, translucent){
   let radius = isSel ? 11 : 8;
   if(big) radius = isSel ? 22 : 17;
+  const baseFill = isActive ? 0.95 : 0.22;
+  const baseLine = isActive ? 1 : 0.3;
+  const factor = translucent ? 0.45 : 1; // 진행중/미착수 반투명 처리
   return {
     radius,
     color: isSel ? '#0B63CE' : '#ffffff',
     weight: isSel ? 3 : 1.2,
     fillColor: color,
-    fillOpacity: isActive ? 0.95 : 0.22,
-    opacity: isActive ? 1 : 0.3
+    fillOpacity: baseFill * factor,
+    opacity: translucent ? Math.min(baseLine, 0.6) : baseLine
   };
 }
 
@@ -2405,11 +2426,11 @@ function renderMap(){
     seenIds.add(id);
     const isActive = activeSet.has(id);
     const isSel = id===selectedId;
-    const color = STATUS_HEX[m.status] || STATUS_HEX['미착수'];
+    const info = manholeColorInfo(m);
     const dayIdx = dayViewDate ? dayIds.indexOf(id) : -1;
     const isDayMember = dayIdx !== -1;
     const dimForDayView = dayViewDate && !isDayMember;
-    const style = manholeStyle(color, isSel, dimForDayView ? false : isActive, isDayMember);
+    const style = manholeStyle(info.color, isSel, dimForDayView ? false : isActive, isDayMember, info.translucent);
     const styleKey = JSON.stringify(style);
     const tooltipText = isDayMember ? `${dayIdx+1}. ${m.id}` : m.id;
     const tooltipClass = isDayMember ? 'mh-label mh-label-big' : 'mh-label';
@@ -2518,7 +2539,7 @@ function renderTable(){
       const m = state.manholes[id];
       const sel = id===selectedId ? 'selected':'';
       html += `<tr class="tbrow ${sel}" data-id="${id}">
-        <td style="color:${STATUS_HEX[m.status]};font-weight:700;">●</td>
+        <td style="color:${manholeColorInfo(m).color};font-weight:700;">●</td>
         <td>${m.id}</td><td>${fmtCoord(m.x)}</td><td>${fmtCoord(m.y)}</td><td>${fmtCoord(m.z)}</td>
         <td>${m.status}</td><td>${m.lidar?'Y':'-'}</td>
         <td>${m.invert}</td><td>${m.ladder}</td><td>${m.fall}</td><td>${m.sensor||'없음'}</td>
