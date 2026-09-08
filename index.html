@@ -2130,8 +2130,8 @@ function initLeaflet(){
     document.querySelectorAll('.gps-btn').forEach(b=>b.innerHTML='<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" width=\"15\" height=\"15\"><path d=\"M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z\"></path><circle cx=\"12\" cy=\"10\" r=\"3\"></circle></svg>');
     if(meMarker) leafletMap.removeLayer(meMarker);
     if(meCircle) leafletMap.removeLayer(meCircle);
-    meCircle = L.circle(e.latlng, {radius:e.accuracy, color:'#0B63CE', weight:1, fillColor:'#0B63CE', fillOpacity:0.1}).addTo(leafletMap);
-    meMarker = L.circleMarker(e.latlng, {radius:8, color:'#fff', weight:2, fillColor:'#0B63CE', fillOpacity:1}).addTo(leafletMap);
+    meCircle = L.circle(e.latlng, {radius:e.accuracy, color:'#0B63CE', weight:1, fillColor:'#0B63CE', fillOpacity:0.08}).addTo(leafletMap);
+    meMarker = L.circleMarker(e.latlng, {radius:5, color:'#fff', weight:1.5, fillColor:'#0B63CE', fillOpacity:1}).addTo(leafletMap);
     meMarker.bindTooltip('내 위치', {direction:'top', offset:[0,-8]});
   });
   leafletMap.on('locationerror', (e)=>{
