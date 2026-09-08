@@ -207,6 +207,10 @@ tr.tbrow.selected{background:rgba(11,99,206,0.08);}
 }
 .field textarea{resize:vertical;min-height:56px;font-family:var(--sans);}
 .check-row{display:flex;align-items:center;gap:8px;background:var(--panel-2);border:1px solid var(--border);border-radius:6px;padding:9px 10px;}
+.cond-check-group{display:flex;flex-wrap:wrap;gap:6px;}
+.cond-check-item{display:flex;align-items:center;gap:5px;background:var(--panel-2);border:1px solid var(--border);border-radius:6px;padding:6px 9px;font-size:12px;color:var(--text);cursor:pointer;user-select:none;}
+.cond-check-item input{margin:0;cursor:pointer;}
+.cond-check-item:has(input:checked){border-color:var(--accent);background:rgba(11,99,206,0.12);}
 .check-row input{width:16px;height:16px;accent-color:var(--accent);}
 .status-select{font-weight:700;}
 hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
@@ -508,7 +512,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v8.0 · 2026-09-08';
+const APP_VERSION = 'v8.1 · 2026-09-08';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -597,7 +601,8 @@ async function resetManholeSurvey(id){
   m.ladder = '없음';
   m.fall = '없음';
   m.sensor = '없음';
-  m.condition = '';
+  m.conditions = getConditions(m).includes('추가맨홀') ? ['추가맨홀'] : []; // 추가맨홀 여부(생성 방식)는 유지, 나머지 조사 소견은 초기화
+  delete m.condition;
   m.conditionNote = '';
   m.inspector = '';
   m.date = '';
@@ -857,7 +862,7 @@ document.getElementById('statusSubTabs').addEventListener('click', (e)=>{
 });
 
 function blankRecord(id,x,y,z){
-  return {id,x,y,z,status:'미착수',lidar:false,invert:'없음',ladder:'없음',fall:'없음',sensor:'없음',inspector:'',date:'',note:''};
+  return {id,x,y,z,status:'미착수',lidar:false,invert:'없음',ladder:'없음',fall:'없음',sensor:'없음',conditions:[],conditionNote:'',inspector:'',date:'',note:''};
 }
 
 let firebaseHealthy = null; // null=아직모름, true=정상, false=실패(권한/규칙 문제 가능성)
@@ -1124,7 +1129,8 @@ document.getElementById('inspectorNameInput').addEventListener('keydown', (e)=>{
 
 /* ---------- 통계 / 날짜별 경로 보기 ---------- */
 function renderStatsModal(){
-  const all = state.order.map(id=>state.manholes[id]).filter(Boolean);
+  const raw = state.order.map(id=>state.manholes[id]).filter(Boolean);
+  const all = raw.filter(m=>!isDuplicateExcluded(m)); // 중복제외 맨홀은 완료율 등 통계에서 제외
   const total = all.length;
   const done = all.filter(m=>m.status==='완료').length;
   document.getElementById('statsTotal').textContent = total;
@@ -1141,17 +1147,18 @@ function renderStatsModal(){
   renderStatsDateList();
   renderPeriodTable();
   renderCPStats();
-  renderConditionStats(all, total);
+  renderConditionStats(raw, raw.length); // 맨홀상태 분포는 중복제외 포함 전체 기준으로 표시
 }
 function renderConditionStats(all, total){
   const wrap = document.getElementById('conditionStatsWrap');
-  const categories = ['없음','매몰','개폐불가','측량불가','기타'];
-  const colors = {'없음':'#9AA6B2','매몰':'#FBC02D','개폐불가':'#E53935','측량불가':'#FB8C00','기타':'#FB8C00'};
+  const categories = ['없음', ...CONDITION_ORDER];
+  const colors = Object.assign({'없음':'#9AA6B2'}, CONDITION_COLORS);
   const counts = {};
   categories.forEach(c=>counts[c]=0);
   all.forEach(m=>{
-    const key = m.condition && categories.includes(m.condition) ? m.condition : '없음';
-    counts[key]++;
+    const conds = getConditions(m);
+    if(!conds.length){ counts['없음']++; }
+    else conds.forEach(c=>{ if(counts[c]!==undefined) counts[c]++; });
   });
   wrap.innerHTML = categories.map(c=>{
     const n = counts[c];
@@ -1420,7 +1427,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', async ()=>{
       '맨홀번호': m.id, 'X': m.x, 'Y': m.y, 'Z': m.z,
       '진행상태': m.status, '라이다촬영': m.lidar ? 'Y' : 'N',
       '인버트': m.invert, '사다리': m.ladder, '추락방지시설': m.fall, '계측센서': m.sensor,
-      '맨홀상태여부': m.condition==='기타' ? (m.conditionNote||'기타') : (m.condition||''),
+      '맨홀상태여부': formatConditions(m),
       '조사자': m.inspector || '', '조사일자': m.date || '', '비고': m.note || ''
     };
   }).filter(Boolean);
@@ -1607,7 +1614,7 @@ function getFilteredIds(){
 
 /* ---------- render: dashboard ---------- */
 function renderDashboard(){
-  const all = state.order.map(id=>state.manholes[id]).filter(Boolean);
+  const all = state.order.map(id=>state.manholes[id]).filter(Boolean).filter(m=>!isDuplicateExcluded(m));
   const total = all.length;
   const done = all.filter(m=>m.status==='완료').length;
   const prog = all.filter(m=>m.status==='진행중').length;
@@ -2007,7 +2014,7 @@ function handleMapPlacementClick(latlng){
       state.manholes[id].y = coords.y;
     }else{
       state.manholes[id] = blankRecord(id, coords.x, coords.y, 0);
-      state.manholes[id].addedManually = true; // 지도에서 직접 추가한 맨홀 → '추가맨홀'로 표시
+      state.manholes[id].conditions = ['추가맨홀']; // 지도에서 직접 추가한 맨홀 → '추가맨홀'로 표시
       state.order.push(id);
     }
     saveState();
@@ -2300,13 +2307,29 @@ function renderControlPoints(){
   });
 }
 
-/* 맨홀 색상 우선순위: 맨홀상태여부(매몰/개폐불가/그외/추가맨홀) > 진행상태(완료=초록, 그외=회색 반투명) */
-const CONDITION_COLORS = { '매몰':'#FBC02D', '개폐불가':'#E53935', '측량불가':'#FB8C00', '기타':'#FB8C00' };
-const ADDED_MANUALLY_COLOR = '#1E88E5';
+/* 맨홀상태여부: 중복선택 가능. 순서=체크박스 표시 순서, 우선순위=지도/목록 색상 결정 순서 */
+const CONDITION_ORDER = ['매몰','개폐불가','측량불가','중복제외','추가맨홀','기타'];
+const CONDITION_COLORS = { '매몰':'#FBC02D', '개폐불가':'#E53935', '측량불가':'#FB8C00', '중복제외':'#78909C', '추가맨홀':'#1E88E5', '기타':'#FB8C00' };
+const COLOR_PRIORITY = ['개폐불가','매몰','중복제외','추가맨홀','측량불가','기타'];
+function getConditions(m){
+  if(Array.isArray(m.conditions)) return m.conditions;
+  const legacy = [];
+  if(m.condition) legacy.push(m.condition);
+  if(m.addedManually && m.condition!=='추가맨홀') legacy.push('추가맨홀');
+  return legacy;
+}
+function hasCondition(m,key){ return getConditions(m).includes(key); }
+function isDuplicateExcluded(m){ return hasCondition(m,'중복제외'); }
+function formatConditions(m){
+  const list = getConditions(m).map(c => c==='기타' ? (m.conditionNote||'기타') : c);
+  return list.join(', ');
+}
+/* 맨홀 색상 우선순위: 맨홀상태여부(개폐불가>매몰>중복제외>추가맨홀>그외) > 진행상태(완료=초록, 그외=회색 반투명) */
 function manholeColorInfo(m){
-  const condColor = m.condition && CONDITION_COLORS[m.condition];
-  if(condColor) return {color:condColor, translucent:false};
-  if(m.addedManually) return {color:ADDED_MANUALLY_COLOR, translucent:false};
+  const conds = getConditions(m);
+  for(const key of COLOR_PRIORITY){
+    if(conds.includes(key)) return {color:CONDITION_COLORS[key], translucent:false};
+  }
   if(m.status==='완료') return {color:STATUS_HEX['완료'], translucent:false};
   return {color:'#9AA6B2', translucent:true}; // 진행중/미착수 → 회색 반투명
 }
@@ -2420,6 +2443,7 @@ function renderMap(){
   function processOne(id){
     const m = state.manholes[id];
     if(!m) return;
+    if(isDuplicateExcluded(m)) return; // 중복제외 맨홀은 지도에서 아예 숨김 (기존 마커가 있었다면 아래 정리 로직에서 자동 제거됨)
     const ll = toLatLng(m.x, m.y);
     if(!ll) return;
     boundsPts.push(ll);
@@ -2512,7 +2536,7 @@ function renderTable(){
   }
   const sig = ids.length+'|'+selectedId+'|'+ids.map(id=>{
     const m = state.manholes[id];
-    return id+m.status+m.lidar+m.invert+m.ladder+m.fall+m.sensor+m.condition+m.conditionNote+m.inspector+m.date+m.x+m.y+m.z;
+    return id+m.status+m.lidar+m.invert+m.ladder+m.fall+m.sensor+getConditions(m).join('|')+m.conditionNote+m.inspector+m.date+m.x+m.y+m.z;
   }).join(';');
   if(sig === _lastTableSig) return;
   _lastTableSig = sig;
@@ -2543,7 +2567,7 @@ function renderTable(){
         <td>${m.id}</td><td>${fmtCoord(m.x)}</td><td>${fmtCoord(m.y)}</td><td>${fmtCoord(m.z)}</td>
         <td>${m.status}</td><td>${m.lidar?'Y':'-'}</td>
         <td>${m.invert}</td><td>${m.ladder}</td><td>${m.fall}</td><td>${m.sensor||'없음'}</td>
-        <td>${m.condition==='기타' ? (m.conditionNote||'기타') : (m.condition||'-')}</td>
+        <td>${formatConditions(m) || '-'}</td>
         <td>${m.inspector||'-'}</td><td>${m.date||'-'}</td>
       </tr>`;
     }
@@ -2617,16 +2641,17 @@ function renderDetailContent(panel){
       <select id="f-sensor">${presenceOptions(m.sensor)}</select>
     </div>
     <div class="field">
-      <label>맨홀상태여부</label>
-      <select id="f-condition">
-        <option value="" ${!m.condition?'selected':''}>없음</option>
-        <option value="매몰" ${m.condition==='매몰'?'selected':''}>매몰</option>
-        <option value="개폐불가" ${m.condition==='개폐불가'?'selected':''}>개폐불가</option>
-        <option value="측량불가" ${m.condition==='측량불가'?'selected':''}>측량불가</option>
-        <option value="기타" ${m.condition==='기타'?'selected':''}>기타</option>
-      </select>
+      <label>맨홀상태여부 (중복 선택 가능)</label>
+      <div class="cond-check-group">
+        ${CONDITION_ORDER.map(c=>`
+          <label class="cond-check-item">
+            <input type="checkbox" class="f-condition-cb" value="${c}" ${getConditions(m).includes(c)?'checked':''}>
+            <span>${c}</span>
+          </label>
+        `).join('')}
+      </div>
     </div>
-    <div class="field" id="condition-note-wrap" style="display:${m.condition==='기타'?'block':'none'};">
+    <div class="field" id="condition-note-wrap" style="display:${getConditions(m).includes('기타')?'block':'none'};">
       <label>기타 사유 입력</label>
       <input type="text" id="f-condition-note" value="${m.conditionNote||''}" placeholder="사유를 입력해주세요">
     </div>
@@ -2709,18 +2734,24 @@ function renderDetailContent(panel){
   bind('f-date','date');
   bind('f-note','note','input');
 
-  document.getElementById('f-condition').addEventListener('change', (e)=>{
-    const m = state.manholes[selectedId];
-    m.condition = e.target.value;
-    if(m.condition!=='기타') m.conditionNote = '';
-    if(!m.enteredAt) m.enteredAt = Date.now();
-    renderDetail();
-    if(m.condition==='기타'){
-      const note = document.getElementById('f-condition-note');
-      if(note) note.focus();
-    }
-    refreshMarkerAppearance(selectedId);
-    saveState().then(()=>showToast('저장됨'));
+  document.querySelectorAll('.f-condition-cb').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      const m = state.manholes[selectedId];
+      const checked = Array.from(document.querySelectorAll('.f-condition-cb:checked')).map(el=>el.value);
+      m.conditions = CONDITION_ORDER.filter(c=>checked.includes(c));
+      delete m.condition; // 예전 단일선택 필드는 더 이상 사용하지 않음
+      if(!m.conditions.includes('기타')) m.conditionNote = '';
+      if(!m.enteredAt) m.enteredAt = Date.now();
+      renderDetail();
+      if(m.conditions.includes('기타')){
+        const note = document.getElementById('f-condition-note');
+        if(note) note.focus();
+      }
+      refreshMarkerAppearance(selectedId);
+      renderMap();
+      renderDashboard();
+      saveState().then(()=>showToast('저장됨'));
+    });
   });
   const conditionNoteInput = document.getElementById('f-condition-note');
   if(conditionNoteInput){
