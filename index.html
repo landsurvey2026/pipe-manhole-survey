@@ -485,7 +485,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
     </div>
     <div class="legend">
       <span><i class="dot" style="background:var(--st-done)"></i>완료</span>
-      <span><i class="dot" style="background:#9AA6B2;opacity:.5"></i>진행중·미착수</span>
+      <span><i class="dot" style="background:#4A90D9;opacity:.75"></i>진행중·미착수</span>
       <span class="legend-sep"></span>
       <span><i class="dot" style="background:#FBC02D"></i>매몰</span>
       <span><i class="dot" style="background:#E53935"></i>개폐불가</span>
@@ -534,7 +534,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v8.7 · 2026-09-08';
+const APP_VERSION = 'v8.8 · 2026-09-11';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -2553,7 +2553,7 @@ function manholeColorInfo(m){
     if(conds.includes(key)) return {color:CONDITION_COLORS[key], translucent:false};
   }
   if(m.status==='완료') return {color:STATUS_HEX['완료'], translucent:false};
-  return {color:'#9AA6B2', translucent:true}; // 진행중/미착수 → 회색 반투명
+  return {color:'#4A90D9', translucent:true}; // 진행중/미착수 → 파란색 반투명
 }
 
 /* 맨홀 마커 스타일 (성능을 위해 캔버스 렌더링되는 원형 마커 사용) */
@@ -2562,7 +2562,7 @@ function manholeStyle(color, isSel, isActive, big, translucent){
   if(big) radius = isSel ? 14 : 11;
   const baseFill = isActive ? 0.95 : 0.22;
   const baseLine = isActive ? 1 : 0.3;
-  const factor = translucent ? 0.45 : 1; // 진행중/미착수 반투명 처리
+  const factor = translucent ? 0.65 : 1; // 진행중/미착수 반투명 처리 (완료보다는 옅지만 잘 보이도록)
   return {
     radius,
     color: isSel ? '#0B63CE' : '#ffffff',
