@@ -76,7 +76,7 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
 }
 
 /* 속성 상세정보 팝업 (지도 위 오른쪽, 화면의 2/3 크기) */
-.detail-backdrop{display:none;position:fixed;inset:0;background:rgba(15,20,26,0.35);z-index:920;}
+.detail-backdrop{display:none;position:fixed;inset:0;background:transparent;z-index:920;}
 .detail-backdrop.open{display:block;}
 .detail-modal{display:none;position:fixed;top:78px;right:20px;width:320px;max-height:66vh;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(10,15,25,0.35), 0 2px 8px rgba(10,15,25,0.15);z-index:921;overflow:hidden;border-top:3px solid var(--accent);}
 .detail-modal.open{display:flex;flex-direction:column;}
@@ -140,6 +140,17 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
 .mh-chip{background:var(--panel-2);border:1px solid var(--border);border-radius:16px;padding:7px 13px;cursor:pointer;font-family:var(--mono);font-weight:700;font-size:12px;color:var(--text);transition:border-color .1s ease, background .1s ease;}
 .mh-chip:hover{border-color:var(--accent);}
 .mh-chip.selected{border-color:var(--accent);background:rgba(11,99,206,0.14);color:var(--accent);}
+.route-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+.route-cal-wd{text-align:center;font-size:9.5px;color:var(--text-dim);font-weight:700;padding-bottom:2px;}
+.route-cal-cell{position:relative;aspect-ratio:1/1;border-radius:6px;background:var(--panel-2);border:1px solid transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;}
+.route-cal-cell.empty{background:transparent;}
+.route-cal-cell.has-data{cursor:pointer;background:var(--panel);border-color:var(--border);}
+.route-cal-cell.has-data:hover{border-color:var(--accent);}
+.route-cal-cell.selected{border-width:2px;}
+.route-cal-daynum{font-size:9px;color:var(--text-dim);position:absolute;top:2px;left:4px;}
+.route-cal-count{font-size:12px;font-weight:800;color:var(--text);margin-top:2px;}
+.route-cal-bar{position:absolute;left:2px;right:2px;bottom:2px;height:3px;border-radius:2px;overflow:hidden;display:flex;background:var(--border);}
+.route-cal-bar span{height:100%;display:block;}
 .sim-runner-dot{border-radius:50%;box-sizing:border-box;animation:simRunnerPulse 1s ease-in-out infinite;}
 @keyframes simRunnerPulse{0%,100%{box-shadow:0 0 0 4px rgba(255,255,255,0.35), 0 2px 8px rgba(0,0,0,0.4);}50%{box-shadow:0 0 0 8px rgba(255,255,255,0.05), 0 2px 8px rgba(0,0,0,0.4);}}
 .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
@@ -381,7 +392,24 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
             <span id="routeViewToggleIcon" style="font-size:11px;color:var(--text-dim);">▾</span>
           </div>
           <div id="routeViewBody" style="display:none;margin-top:10px;">
+            <div style="display:flex;gap:4px;margin-bottom:8px;">
+              <button class="route-view-tab active" data-view="list" style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;">목록</button>
+              <button class="route-view-tab" data-view="calendar" style="flex:1;background:var(--panel-2);color:var(--text-dim);border:1px solid var(--border);border-radius:6px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;">📅 달력</button>
+            </div>
             <div id="routeDateList" style="display:flex;flex-direction:column;gap:4px;max-height:170px;overflow-y:auto;margin-bottom:10px;"></div>
+            <div id="routeCalendarWrap" style="display:none;margin-bottom:10px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                <button id="routeCalPrevBtn" style="background:var(--panel-2);border:1px solid var(--border);color:var(--text);border-radius:5px;width:22px;height:22px;cursor:pointer;font-size:12px;">‹</button>
+                <span id="routeCalMonthLabel" style="font-size:12px;font-weight:700;color:var(--text);"></span>
+                <button id="routeCalNextBtn" style="background:var(--panel-2);border:1px solid var(--border);color:var(--text);border-radius:5px;width:22px;height:22px;cursor:pointer;font-size:12px;">›</button>
+              </div>
+              <div id="routeCalGrid" class="route-cal-grid"></div>
+              <div style="display:flex;gap:8px;margin-top:6px;font-size:9.5px;color:var(--text-dim);flex-wrap:wrap;">
+                <span><i class="dot" style="background:var(--st-none);"></i>미착수</span>
+                <span><i class="dot" style="background:var(--st-progress);"></i>진행중</span>
+                <span><i class="dot" style="background:var(--st-done);"></i>완료</span>
+              </div>
+            </div>
             <div style="display:flex;gap:6px;margin-bottom:8px;">
               <button id="routeSimPlayBtn" style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:7px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">▶ 시뮬레이션 시작</button>
             </div>
@@ -534,7 +562,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v8.8 · 2026-09-11';
+const APP_VERSION = 'v9.0 · 2026-09-11';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -1368,7 +1396,7 @@ function toggleDayViewDate(date){
   const i = dayViewDates.indexOf(date);
   if(i===-1) dayViewDates.push(date); else dayViewDates.splice(i,1);
   renderDayViewBar();
-  renderRouteDateList();
+  refreshRouteDatePanel();
   renderMap();
   restartFlowArrowAnim();
 }
@@ -1376,7 +1404,7 @@ function clearDayView(){
   stopSimulation();
   dayViewDates = [];
   renderDayViewBar();
-  renderRouteDateList();
+  refreshRouteDatePanel();
   renderMap();
   stopFlowArrowAnim();
 }
@@ -1401,8 +1429,11 @@ document.getElementById('routeViewHeader').addEventListener('click', ()=>{
   routeViewOpen = !routeViewOpen;
   document.getElementById('routeViewBody').style.display = routeViewOpen ? 'block' : 'none';
   document.getElementById('routeViewToggleIcon').textContent = routeViewOpen ? '▴' : '▾';
-  if(routeViewOpen) renderRouteDateList();
+  if(routeViewOpen) refreshRouteDatePanel();
 });
+function refreshRouteDatePanel(){
+  if(routeViewMode === 'calendar') renderRouteCalendar(); else renderRouteDateList();
+}
 function renderRouteDateList(){
   const wrap = document.getElementById('routeDateList');
   if(!wrap) return;
@@ -1430,6 +1461,101 @@ document.getElementById('routeDateList').addEventListener('change', (e)=>{
   toggleDayViewDate(cb.dataset.date);
 });
 document.getElementById('routeClearBtn').addEventListener('click', clearDayView);
+
+/* ---------- 조사일자 달력 보기: 날짜별 조사 맨홀의 진행상태(완료/진행중/미착수) 개수를 함께 표시 ---------- */
+let routeViewMode = 'list'; // 'list' | 'calendar'
+let routeCalYear = null, routeCalMonth = null; // routeCalMonth: 0-indexed
+document.querySelectorAll('.route-view-tab').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    routeViewMode = btn.dataset.view;
+    document.querySelectorAll('.route-view-tab').forEach(b=>{
+      const active = b===btn;
+      b.classList.toggle('active', active);
+      b.style.background = active ? 'var(--accent)' : 'var(--panel-2)';
+      b.style.color = active ? '#fff' : 'var(--text-dim)';
+      b.style.border = active ? 'none' : '1px solid var(--border)';
+    });
+    document.getElementById('routeDateList').style.display = routeViewMode==='list' ? 'flex' : 'none';
+    document.getElementById('routeCalendarWrap').style.display = routeViewMode==='calendar' ? 'block' : 'none';
+    refreshRouteDatePanel();
+  });
+});
+function initRouteCalMonth(){
+  const all = state.order.map(id=>state.manholes[id]).filter(Boolean);
+  const dates = [...new Set(all.map(m=>m.date).filter(Boolean))].filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+  const base = dates.length ? new Date(dates[dates.length-1]+'T00:00:00') : new Date();
+  routeCalYear = base.getFullYear();
+  routeCalMonth = base.getMonth();
+}
+function dateStatusCounts(){
+  // 조사일자(m.date) -> {미착수, 진행중, 완료, total} 진행상태별 개수
+  const map = {};
+  state.order.forEach(id=>{
+    const m = state.manholes[id];
+    if(!m || !m.date) return;
+    if(!map[m.date]) map[m.date] = {'미착수':0,'진행중':0,'완료':0,total:0};
+    const st = map[m.date];
+    if(st[m.status]!==undefined) st[m.status]++;
+    st.total++;
+  });
+  return map;
+}
+function renderRouteCalendar(){
+  const grid = document.getElementById('routeCalGrid');
+  const label = document.getElementById('routeCalMonthLabel');
+  if(!grid || !label) return;
+  if(routeCalYear===null) initRouteCalMonth();
+  label.textContent = `${routeCalYear}년 ${routeCalMonth+1}월`;
+  const counts = dateStatusCounts();
+  const firstOfMonth = new Date(routeCalYear, routeCalMonth, 1);
+  const startIdx = firstOfMonth.getDay(); // 0=일요일
+  const daysInMonth = new Date(routeCalYear, routeCalMonth+1, 0).getDate();
+  let html = ['일','월','화','수','목','금','토'].map(d=>`<div class="route-cal-wd">${d}</div>`).join('');
+  for(let i=0;i<startIdx;i++) html += `<div class="route-cal-cell empty"></div>`;
+  for(let d=1; d<=daysInMonth; d++){
+    const dateStr = `${routeCalYear}-${String(routeCalMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const st = counts[dateStr];
+    const hasData = st && st.total>0;
+    const selected = dayViewDates.includes(dateStr);
+    const ringColor = selected ? dayViewColorFor(dateStr) : null;
+    let barHtml = '';
+    let title = dateStr;
+    if(hasData){
+      const pNone = st['미착수']/st.total*100, pProg = st['진행중']/st.total*100, pDone = st['완료']/st.total*100;
+      barHtml = `<div class="route-cal-bar">
+        <span style="width:${pNone}%;background:var(--st-none);"></span>
+        <span style="width:${pProg}%;background:var(--st-progress);"></span>
+        <span style="width:${pDone}%;background:var(--st-done);"></span>
+      </div>`;
+      title = `${dateStr} · 총 ${st.total}개 · 완료 ${st['완료']} · 진행중 ${st['진행중']} · 미착수 ${st['미착수']}`;
+    }
+    const styleParts = [];
+    if(ringColor){ styleParts.push(`border-color:${ringColor}`); styleParts.push(`background:${ringColor}22`); }
+    html += `<div class="route-cal-cell ${hasData?'has-data':''} ${selected?'selected':''}" ${hasData?`data-date="${dateStr}"`:''} title="${title}" style="${styleParts.join(';')}">
+      <span class="route-cal-daynum">${d}</span>
+      ${hasData?`<span class="route-cal-count">${st.total}</span>`:''}
+      ${barHtml}
+    </div>`;
+  }
+  grid.innerHTML = html;
+}
+document.getElementById('routeCalGrid').addEventListener('click', (e)=>{
+  const cell = e.target.closest('.route-cal-cell.has-data');
+  if(!cell) return;
+  toggleDayViewDate(cell.dataset.date);
+});
+document.getElementById('routeCalPrevBtn').addEventListener('click', ()=>{
+  if(routeCalYear===null) initRouteCalMonth();
+  routeCalMonth--;
+  if(routeCalMonth<0){ routeCalMonth=11; routeCalYear--; }
+  renderRouteCalendar();
+});
+document.getElementById('routeCalNextBtn').addEventListener('click', ()=>{
+  if(routeCalYear===null) initRouteCalMonth();
+  routeCalMonth++;
+  if(routeCalMonth>11){ routeCalMonth=0; routeCalYear++; }
+  renderRouteCalendar();
+});
 
 /* ---------- 경로 라인따라 이동하는 시뮬레이션 ---------- */
 let simState = { playing:false, rafId:null, startTs:0, speedMs:600, runners:[] };
@@ -3030,7 +3156,7 @@ function renderAll(){
   renderCPList();
   renderInspectorList();
   renderDayViewBar();
-  if(routeViewOpen) renderRouteDateList();
+  if(routeViewOpen) refreshRouteDatePanel();
   if(selectedCPName) renderCPDetail();
 }
 
