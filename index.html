@@ -411,21 +411,13 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
               <button class="route-view-tab" data-view="calendar" style="flex:1;background:var(--panel-2);color:var(--text-dim);border:1px solid var(--border);border-radius:6px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;">📅 달력</button>
             </div>
             <div id="routeDateList" style="display:flex;flex-direction:column;gap:4px;max-height:170px;overflow-y:auto;margin-bottom:10px;"></div>
-            <div id="routeCalendarWrap" style="display:none;margin-bottom:8px;max-width:240px;margin-left:auto;margin-right:auto;">
+            <div id="routeCalendarWrap" style="display:none;margin-bottom:8px;max-width:320px;margin-left:auto;margin-right:auto;">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
                 <button id="routeCalPrevBtn" style="background:var(--panel-2);border:1px solid var(--border);color:var(--text);border-radius:5px;width:20px;height:20px;cursor:pointer;font-size:11px;">‹</button>
                 <span id="routeCalMonthLabel" style="font-size:11.5px;font-weight:700;color:var(--text);"></span>
                 <button id="routeCalNextBtn" style="background:var(--panel-2);border:1px solid var(--border);color:var(--text);border-radius:5px;width:20px;height:20px;cursor:pointer;font-size:11px;">›</button>
               </div>
               <div id="routeCalGrid" class="route-cal-grid"></div>
-              <div style="display:flex;gap:6px;margin-top:5px;font-size:9px;color:var(--text-dim);flex-wrap:wrap;justify-content:center;">
-                <span><i class="dot" style="background:var(--st-none);"></i>미착수</span>
-                <span><i class="dot" style="background:var(--st-progress);"></i>진행중</span>
-                <span><i class="dot" style="background:var(--st-done);"></i>완료</span>
-              </div>
-            </div>
-            <div style="display:flex;gap:6px;margin-bottom:6px;">
-              <button id="routeSimPlayBtn" style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:7px;padding:7px;font-size:12px;font-weight:700;cursor:pointer;">▶ 시뮬레이션 시작</button>
             </div>
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
               <label style="font-size:10.5px;color:var(--text-dim);white-space:nowrap;">재생속도</label>
@@ -577,7 +569,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v9.6 · 2026-09-12';
+const APP_VERSION = 'v9.7 · 2026-09-12';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -1630,68 +1622,10 @@ document.getElementById('routeSimSpeed').addEventListener('change', (e)=>{
   simState.speedMs = parseInt(e.target.value, 10) || 600;
   if(dayViewDates.length) restartFlowArrowAnim(); // 흐름 화살표도 바뀐 속도로 즉시 다시 시작
 });
-function makeRunnerIcon(color){
-  return L.divIcon({
-    className:'',
-    html:`<div class="sim-runner-dot" style="width:16px;height:16px;background:${color};border:3px solid #fff;"></div>`,
-    iconSize:[16,16], iconAnchor:[8,8]
-  });
-}
-function buildRunners(){
-  const sorted = dayViewDates.slice().sort();
-  return sorted.map(date=>{
-    const color = dayViewColorFor(date);
-    const ids = getDayOrderIds(date);
-    const points = ids.map(id=>toLatLng(state.manholes[id].x, state.manholes[id].y)).filter(Boolean);
-    return { date, color, points };
-  }).filter(r=>r.points.length>1);
-}
 function updateSimButton(){
   const btn = document.getElementById('routeSimPlayBtn');
   if(!btn) return;
   btn.textContent = simState.playing ? '⏹ 시뮬레이션 정지' : '▶ 시뮬레이션 시작';
-}
-function startSimulation(){
-  if(!dayViewDates.length){ showToast('조사일자를 먼저 선택해주세요'); return; }
-  initLeaflet();
-  switchToMapView();
-  stopSimulation();
-  const runners = buildRunners();
-  if(!runners.length){ showToast('경로를 표시할 수 있는 지점이 2개 이상인 날짜가 없습니다'); return; }
-  runners.forEach(r=>{
-    r.marker = L.marker(r.points[0], {icon: makeRunnerIcon(r.color), interactive:false, zIndexOffset:1000}).addTo(simLayerGroup);
-  });
-  simState.runners = runners;
-  simState.playing = true;
-  simState.startTs = performance.now();
-  updateSimButton();
-  simState.rafId = requestAnimationFrame(simTick);
-}
-function simTick(now){
-  if(!simState.playing) return;
-  const elapsed = now - simState.startTs;
-  let allDone = true;
-  simState.runners.forEach(r=>{
-    const segCount = r.points.length - 1;
-    const totalDur = segCount * simState.speedMs;
-    const t = Math.min(elapsed, totalDur);
-    if(t < totalDur) allDone = false;
-    const segFloat = t / simState.speedMs;
-    let segIdx = Math.floor(segFloat);
-    if(segIdx >= segCount) segIdx = segCount - 1;
-    const segT = Math.min(1, segFloat - segIdx);
-    const p1 = r.points[segIdx], p2 = r.points[segIdx+1];
-    const lat = p1[0] + (p2[0]-p1[0]) * segT;
-    const lng = p1[1] + (p2[1]-p1[1]) * segT;
-    r.marker.setLatLng([lat, lng]);
-  });
-  if(allDone){
-    simState.playing = false;
-    updateSimButton();
-    showToast('시뮬레이션이 종료되었습니다');
-    return;
-  }
-  simState.rafId = requestAnimationFrame(simTick);
 }
 function stopSimulation(){
   simState.playing = false;
@@ -1701,9 +1635,6 @@ function stopSimulation(){
   simState.runners = [];
   updateSimButton();
 }
-document.getElementById('routeSimPlayBtn').addEventListener('click', ()=>{
-  if(simState.playing) stopSimulation(); else startSimulation();
-});
 
 
 /* ---------- Excel parsing ---------- */
