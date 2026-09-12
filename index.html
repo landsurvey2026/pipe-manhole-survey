@@ -74,8 +74,8 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
 .menu-modal-close:hover{color:var(--accent);border-color:var(--accent);}
 .menu-modal-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow-y:auto;}
 @media (max-width:860px){
-  .menu-modal{left:10px;right:10px;width:auto;top:auto;bottom:64px;max-height:74vh;border-radius:14px;}
-  .menu-modal.stats-wide{width:auto;max-height:74vh;}
+  .menu-modal{left:10px;right:10px;width:auto;top:auto;bottom:10px;max-height:80vh;border-radius:14px;}
+  .menu-modal.stats-wide{width:auto;max-height:80vh;}
   #routeSection{max-height:38vh;overflow-y:auto;}
 }
 
@@ -86,7 +86,7 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
 .detail-modal.open{display:flex;flex-direction:column;}
 .detail-modal .detail-panel{flex:1;min-height:0;}
 @media (max-width:860px){
-  .detail-modal{left:10px;right:10px;width:auto;top:auto;bottom:64px;max-height:66vh;border-radius:14px;}
+  .detail-modal{left:10px;right:10px;width:auto;top:auto;bottom:10px;max-height:70vh;border-radius:14px;}
 }
 
 /* 새 맨홀 추가 팝업 */
@@ -259,7 +259,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
   .main{grid-template-columns:1fr;}
 
-  .mobile-tabbar{display:flex;flex-shrink:0;background:var(--panel);border-top:1px solid var(--border);position:relative;z-index:950;}
+  .mobile-tabbar{display:none;}
   .mobile-tabbar button{flex:1;background:transparent;border:none;font-family:var(--sans);font-size:11px;color:var(--text-dim);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));cursor:pointer;}
   .mobile-tabbar button .ic{font-size:18px;}
   .mobile-tabbar button .ic svg{width:20px;height:20px;}
@@ -513,7 +513,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
       </div>
       <div class="mt-group" id="layerToggle">
         <button class="active" data-layer="manhole">● 맨홀</button>
-        <button class="active" data-layer="cp">▲ 기준점</button>
+        <button data-layer="cp">▲ 기준점</button>
       </div>
       <div class="mt-group" id="boundaryToggle">
         <button data-layer="gu">구/군 경계</button>
@@ -577,7 +577,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v9.4 · 2026-09-12';
+const APP_VERSION = 'v9.6 · 2026-09-12';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -2593,7 +2593,7 @@ function initLeaflet(){
 
   baseLayers.map.addTo(leafletMap);
   markerLayer = L.layerGroup().addTo(leafletMap);
-  cpLayer = L.layerGroup().addTo(leafletMap);
+  cpLayer = L.layerGroup(); // 기준점은 시작 시 꺼둠 - 지도 위 "▲ 기준점" 버튼을 눌러야 켜짐
   dayViewLayerGroup = L.layerGroup().addTo(leafletMap);
   simLayerGroup = L.layerGroup().addTo(leafletMap);
   flowArrowLayerGroup = L.layerGroup().addTo(leafletMap);
