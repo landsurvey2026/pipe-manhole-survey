@@ -66,7 +66,7 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
 .menu-modal-backdrop{display:none;position:fixed;inset:0;background:rgba(15,20,26,0.35);z-index:900;}
 .menu-modal-backdrop.open{display:block;}
 .menu-modal{display:none;flex-direction:column;position:fixed;top:78px;left:20px;width:320px;max-height:calc(100vh - 110px);background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(10,15,25,0.35), 0 2px 8px rgba(10,15,25,0.15);z-index:901;overflow:hidden;border-top:3px solid var(--accent);}
-.menu-modal.stats-wide{width:480px;max-height:calc(100vh - 60px);}
+.menu-modal.stats-wide{width:480px;max-height:calc(100vh - 108px);}
 .menu-modal.open{display:flex;}
 .menu-modal-header{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
 .menu-modal-title{font-weight:700;font-size:13.5px;color:var(--text);}
@@ -569,7 +569,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v9.7 · 2026-09-12';
+const APP_VERSION = 'v9.8 · 2026-09-12';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
