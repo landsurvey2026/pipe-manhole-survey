@@ -173,7 +173,8 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
 }
 .leaflet-control-attribution{font-size:10px;color:var(--text-dim);background:rgba(255,255,255,0.85);}
 .mh-label{background:rgba(255,255,255,0.92);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--text);box-shadow:none;}
-.mh-label-big{font-size:11.5px;padding:1px 6px;border-radius:4px;border:1.5px solid var(--accent);background:#fff;color:var(--accent);font-weight:800;}
+.mh-label-flex{background:transparent;border:none;box-shadow:none;padding:0;}
+.mh-label-flex::before{display:none;}
 @keyframes searchFlashIcon{
   0%,100%{ filter: drop-shadow(0 0 0px rgba(255,196,0,0)); }
   50%{ filter: drop-shadow(0 0 12px rgba(255,196,0,1)) drop-shadow(0 0 6px rgba(255,196,0,1)); }
@@ -425,6 +426,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
           </div>
         </div>
         <div class="side-section" style="padding-top:0;padding-bottom:10px;">
+          <label id="filterTabsTitle" style="font-size:11px;color:var(--text-dim);font-weight:700;display:block;margin-bottom:8px;">맨홀상태여부</label>
           <div class="filter-tabs" id="filterTabs"></div>
         </div>
         <div class="list-wrap" id="statusListSlot"></div>
@@ -562,7 +564,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v9.0 · 2026-09-11';
+const APP_VERSION = 'v9.1 · 2026-09-12';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -1307,7 +1309,7 @@ function stopDayViewLineAnim(){
 }
 
 /* 경로를 따라 천천히 흘러가는 진행방향 화살표 (고정 화살표 대신 잘 보이도록 애니메이션으로 표시) */
-const FLOW_ARROW_LOOP_MS = 7000; // 화살표 하나가 경로 전체를 한 바퀴 도는 데 걸리는 시간(느리게)
+/* 재생속도(routeSimSpeed) 값을 그대로 재사용해서 "느림/보통/빠름" 선택이 화살표 흐름 속도에도 반영되게 함 */
 const FLOW_ARROWS_PER_ROUTE = 3; // 경로 하나당 동시에 표시할 화살표 개수(등간격으로 계속 흘러 보이게)
 let flowArrowRunners = [];
 let flowArrowRafId = null;
@@ -1337,8 +1339,9 @@ function restartFlowArrowAnim(){
     const ids = getDayOrderIds(date);
     const points = ids.map(id=>toLatLng(state.manholes[id].x, state.manholes[id].y)).filter(Boolean);
     if(points.length < 2) return;
+    const loopMs = Math.max(1200, (points.length - 1) * simState.speedMs); // 재생속도가 빠를수록 한 바퀴 도는 시간이 짧아짐
     for(let k=0;k<FLOW_ARROWS_PER_ROUTE;k++){
-      runners.push({ color, points, phase:k/FLOW_ARROWS_PER_ROUTE, marker:null, lastAngle:null });
+      runners.push({ color, points, loopMs, phase:k/FLOW_ARROWS_PER_ROUTE, marker:null, lastAngle:null });
     }
   });
   if(!runners.length) return;
@@ -1354,7 +1357,7 @@ function flowArrowTick(now){
   const elapsed = now - flowArrowStartTs;
   flowArrowRunners.forEach(r=>{
     const segCount = r.points.length - 1;
-    const cyclePos = (((elapsed / FLOW_ARROW_LOOP_MS) + r.phase) % 1 + 1) % 1; // 0~1 사이를 반복 순환
+    const cyclePos = (((elapsed / r.loopMs) + r.phase) % 1 + 1) % 1; // 0~1 사이를 반복 순환
     const segFloat = cyclePos * segCount;
     let segIdx = Math.floor(segFloat);
     if(segIdx >= segCount) segIdx = segCount - 1;
@@ -1395,17 +1398,17 @@ function toggleDayViewDate(date){
   stopSimulation();
   const i = dayViewDates.indexOf(date);
   if(i===-1) dayViewDates.push(date); else dayViewDates.splice(i,1);
+  conditionFilter = 'all'; // 날짜 선택이 바뀌면 맨홀상태여부 필터를 전체로 리셋해 새 집계를 바로 보여줌
   renderDayViewBar();
-  refreshRouteDatePanel();
-  renderMap();
+  renderAll();
   restartFlowArrowAnim();
 }
 function clearDayView(){
   stopSimulation();
   dayViewDates = [];
+  conditionFilter = 'all';
   renderDayViewBar();
-  refreshRouteDatePanel();
-  renderMap();
+  renderAll();
   stopFlowArrowAnim();
 }
 document.getElementById('dayViewCloseBtn').addEventListener('click', clearDayView);
@@ -1561,6 +1564,7 @@ document.getElementById('routeCalNextBtn').addEventListener('click', ()=>{
 let simState = { playing:false, rafId:null, startTs:0, speedMs:600, runners:[] };
 document.getElementById('routeSimSpeed').addEventListener('change', (e)=>{
   simState.speedMs = parseInt(e.target.value, 10) || 600;
+  if(dayViewDates.length) restartFlowArrowAnim(); // 흐름 화살표도 바뀐 속도로 즉시 다시 시작
 });
 function makeRunnerIcon(color){
   return L.divIcon({
@@ -1929,9 +1933,11 @@ document.getElementById('viewModeToggle').addEventListener('click',(e)=>{
 
 /* ---------- filtered list helper ---------- */
 function getFilteredIds(){
+  const dateSet = dayViewDates.length ? new Set(dayViewDates) : null; // 날짜별 경로가 선택되어 있으면 그 날짜의 맨홀로만 한정
   return state.order.filter(id=>{
     const m = state.manholes[id];
     if(!m) return false;
+    if(dateSet && !dateSet.has(m.date)) return false;
     if(conditionFilter==='없음'){
       if(getConditions(m).length) return false;
     }else if(conditionFilter!=='all'){
@@ -1942,11 +1948,14 @@ function getFilteredIds(){
   });
 }
 
-/* ---------- 현황(맨홀조사) 탭: 맨홀상태여부 필터탭 렌더링 ---------- */
+/* ---------- 현황(맨홀조사) 탭: 맨홀상태여부 필터탭 렌더링 (날짜별 경로 선택 시 해당 날짜 기준으로 집계) ---------- */
 function renderFilterTabs(){
   const wrap = document.getElementById('filterTabs');
   if(!wrap) return;
-  const all = state.order.map(id=>state.manholes[id]).filter(Boolean);
+  const dateSet = dayViewDates.length ? new Set(dayViewDates) : null;
+  const all = state.order.map(id=>state.manholes[id]).filter(Boolean).filter(m=>!dateSet || dateSet.has(m.date));
+  const titleEl = document.getElementById('filterTabsTitle');
+  if(titleEl) titleEl.textContent = dateSet ? `맨홀상태여부 (선택한 날짜 ${dayViewDates.length}일 기준)` : '맨홀상태여부';
   const counts = { all: all.length, '없음': 0 };
   CONDITION_ORDER.forEach(c=>counts[c]=0);
   all.forEach(m=>{
@@ -2764,7 +2773,7 @@ function renderMap(){
     dayViewDates.slice().sort().forEach(date=>{
       const color = dayViewColorFor(date);
       const ids = getDayOrderIds(date);
-      ids.forEach((id, i)=>{ dayMemberInfo[id] = {idx:i}; });
+      ids.forEach((id, i)=>{ dayMemberInfo[id] = {idx:i, color}; });
       const linePts = ids.map(id=>toLatLng(state.manholes[id].x, state.manholes[id].y)).filter(Boolean);
       if(linePts.length>1){
         // 바탕선: 은은하게 전체 경로를 표시
@@ -2800,8 +2809,10 @@ function renderMap(){
     const dimForDayView = dayViewDates.length && !isDayMember;
     const style = manholeStyle(info.color, isSel, dimForDayView ? false : isActive, isDayMember, info.translucent);
     const styleKey = JSON.stringify(style);
-    const tooltipText = isDayMember ? `${dayInfo.idx+1}. ${m.id}` : m.id;
-    const tooltipClass = isDayMember ? 'mh-label mh-label-big' : 'mh-label';
+    const tooltipText = isDayMember
+      ? `<span style="display:inline-block;padding:1px 7px;border-radius:4px;border:1.5px solid ${dayInfo.color};background:#fff;color:${dayInfo.color};font-weight:800;font-size:11.5px;font-family:var(--mono);white-space:nowrap;">${dayInfo.idx+1}. ${m.id}</span>`
+      : m.id;
+    const tooltipClass = isDayMember ? 'mh-label-flex' : 'mh-label';
 
     let entry = markerIndex[id];
     if(!entry){
