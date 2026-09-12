@@ -519,7 +519,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
       <span class="legend-sep"></span>
       <span><i class="dot" style="background:#FBC02D"></i>매몰</span>
       <span><i class="dot" style="background:#E53935"></i>개폐불가</span>
-      <span><i class="dot" style="background:#1E88E5"></i>추가맨홀</span>
+      <span style="color:#8E24AA;">★ 추가맨홀</span>
       <span><i class="dot" style="background:#FB8C00"></i>그외</span>
       <span class="legend-sep"></span>
       <span style="color:#9AA6B2;">▲ 기준점(미조사)</span>
@@ -564,7 +564,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v9.1 · 2026-09-12';
+const APP_VERSION = 'v9.2 · 2026-09-12';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -600,9 +600,25 @@ function refreshMarkerAppearance(id){
   const isActive = new Set(getFilteredIds()).has(id);
   const isSel = id===selectedId;
   const info = manholeColorInfo(m);
+  const isStar = hasCondition(m, '추가맨홀');
   const style = manholeStyle(info.color, isSel, dayViewDates.length ? false : isActive, false, info.translucent);
   const styleKey = JSON.stringify(style);
-  if(entry.styleKey !== styleKey){ entry.marker.setStyle(style); entry.styleKey = styleKey; }
+  if(entry.isStar !== isStar){
+    // 추가맨홀 여부가 바뀌어 모양(원↔별)을 바꿔야 하면 마커를 다시 생성
+    const ll = entry.marker.getLatLng();
+    markerLayer.removeLayer(entry.marker);
+    entry.marker = createManholeMarker(id, ll, style, isStar);
+    entry.isStar = isStar;
+    entry.styleKey = styleKey;
+    entry.tooltipText = null;
+    entry.tooltipClass = null;
+    return;
+  }
+  if(entry.styleKey !== styleKey){
+    if(isStar) entry.marker.setIcon(makeConditionStarIcon(style));
+    else entry.marker.setStyle(style);
+    entry.styleKey = styleKey;
+  }
 }
 function selectManhole(id){
   const prevId = selectedId;
@@ -2666,7 +2682,7 @@ function renderControlPoints(){
 
 /* 맨홀상태여부: 중복선택 가능. 순서=체크박스 표시 순서, 우선순위=지도/목록 색상 결정 순서 */
 const CONDITION_ORDER = ['매몰','개폐불가','측량불가','중복제외','추가맨홀','기타'];
-const CONDITION_COLORS = { '매몰':'#FBC02D', '개폐불가':'#E53935', '측량불가':'#FB8C00', '중복제외':'#78909C', '추가맨홀':'#1E88E5', '기타':'#FB8C00' };
+const CONDITION_COLORS = { '매몰':'#FBC02D', '개폐불가':'#E53935', '측량불가':'#FB8C00', '중복제외':'#78909C', '추가맨홀':'#8E24AA', '기타':'#FB8C00' };
 const COLOR_PRIORITY = ['개폐불가','매몰','중복제외','추가맨홀','측량불가','기타'];
 function getConditions(m){
   if(Array.isArray(m.conditions)) return m.conditions;
@@ -2706,6 +2722,53 @@ function manholeStyle(color, isSel, isActive, big, translucent){
     fillOpacity: baseFill * factor,
     opacity: translucent ? Math.min(baseLine, 0.6) : baseLine
   };
+}
+
+/* 추가맨홀: 다른 맨홀과 확실히 구분되도록 원이 아닌 별 모양 아이콘으로 표시 */
+function starPoints(cx, cy, outerR, innerR, spikes){
+  const pts = [];
+  let rot = Math.PI/2*3;
+  const step = Math.PI/spikes;
+  for(let i=0;i<spikes;i++){
+    pts.push(`${(cx+Math.cos(rot)*outerR).toFixed(1)},${(cy+Math.sin(rot)*outerR).toFixed(1)}`);
+    rot += step;
+    pts.push(`${(cx+Math.cos(rot)*innerR).toFixed(1)},${(cy+Math.sin(rot)*innerR).toFixed(1)}`);
+    rot += step;
+  }
+  return pts.join(' ');
+}
+function makeConditionStarIcon(style){
+  const outerR = style.radius * 1.15; // 원형 마커와 시각적 크기를 맞추기 위해 살짝 키움
+  const innerR = outerR * 0.42;
+  const size = Math.ceil(outerR*2 + style.weight*2 + 2);
+  const half = size/2;
+  return L.divIcon({
+    className:'',
+    html:`<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <polygon points="${starPoints(half, half, outerR, innerR, 5)}"
+        fill="${style.fillColor}" fill-opacity="${style.fillOpacity}"
+        stroke="${style.color}" stroke-width="${style.weight}" stroke-linejoin="round"/>
+    </svg>`,
+    iconSize:[size,size], iconAnchor:[half,half]
+  });
+}
+function bindManholeMarkerClick(marker, id){
+  marker.on('click', ()=>{
+    if(selectingForMove){
+      selectingForMove = false;
+      document.querySelectorAll('.locate-btn-active').forEach(b=>b.classList.remove('locate-btn-active'));
+      startMoveMode(id);
+    }else{
+      selectManhole(id);
+    }
+  });
+}
+function createManholeMarker(id, ll, style, isStar){
+  const marker = isStar
+    ? L.marker(ll, {icon: makeConditionStarIcon(style)}).addTo(markerLayer)
+    : L.circleMarker(ll, style).addTo(markerLayer);
+  bindManholeMarkerClick(marker, id);
+  return marker;
 }
 
 const LABEL_MIN_ZOOM = 19;
@@ -2804,6 +2867,7 @@ function renderMap(){
     const isActive = activeSet.has(id);
     const isSel = id===selectedId;
     const info = manholeColorInfo(m);
+    const isStar = hasCondition(m, '추가맨홀'); // 추가맨홀은 원이 아닌 별 모양으로 구분 표시
     const dayInfo = dayMemberInfo[id];
     const isDayMember = !!dayInfo;
     const dimForDayView = dayViewDates.length && !isDayMember;
@@ -2815,24 +2879,24 @@ function renderMap(){
     const tooltipClass = isDayMember ? 'mh-label-flex' : 'mh-label';
 
     let entry = markerIndex[id];
+    if(entry && entry.isStar !== isStar){
+      // 추가맨홀 여부가 바뀌어 모양(원↔별)을 바꿔야 하면 기존 마커를 지우고 새로 생성
+      markerLayer.removeLayer(entry.marker);
+      entry = null;
+    }
     if(!entry){
-      const marker = L.circleMarker(ll, style).addTo(markerLayer);
-      marker.on('click', ()=>{
-        if(selectingForMove){
-          selectingForMove = false;
-          document.querySelectorAll('.locate-btn-active').forEach(b=>b.classList.remove('locate-btn-active'));
-          startMoveMode(id);
-        }else{
-          selectManhole(id);
-        }
-      });
-      entry = { marker, styleKey:null, tooltipText:null, tooltipClass:null };
+      const marker = createManholeMarker(id, ll, style, isStar);
+      entry = { marker, styleKey:null, tooltipText:null, tooltipClass:null, isStar };
       markerIndex[id] = entry;
     }else{
       const cur = entry.marker.getLatLng();
       if(cur.lat!==ll[0] || cur.lng!==ll[1]) entry.marker.setLatLng(ll);
     }
-    if(entry.styleKey !== styleKey){ entry.marker.setStyle(style); entry.styleKey = styleKey; }
+    if(entry.styleKey !== styleKey){
+      if(isStar) entry.marker.setIcon(makeConditionStarIcon(style));
+      else entry.marker.setStyle(style);
+      entry.styleKey = styleKey;
+    }
     if(entry.tooltipText !== tooltipText || entry.tooltipClass !== tooltipClass){
       entry.marker.unbindTooltip();
       entry.marker.bindTooltip(tooltipText, {
