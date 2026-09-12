@@ -46,7 +46,9 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
 .version-badge{font-size:10px;font-family:var(--mono);color:rgba(255,255,255,0.65);font-weight:500;vertical-align:middle;}
 .brand .sub{font-size:10.5px;color:rgba(255,255,255,0.7);font-family:var(--mono);letter-spacing:0.5px;}
 .dash{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap;}
-.dash-card{background:linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.06));border:1px solid rgba(255,255,255,0.22);border-radius:10px;padding:9px 16px;min-width:80px;text-align:center;box-shadow:0 3px 10px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.15);}
+.dash-card{background:linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.06));border:1px solid rgba(255,255,255,0.22);border-radius:10px;padding:9px 16px;min-width:80px;text-align:center;box-shadow:0 3px 10px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.15);cursor:pointer;transition:border-color .12s ease, background .12s ease;}
+.dash-card:hover{border-color:rgba(255,255,255,0.45);}
+.dash-card.active-highlight{border-color:#fff;background:linear-gradient(180deg,rgba(255,255,255,0.32),rgba(255,255,255,0.12));box-shadow:0 3px 10px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.25), 0 0 0 2px rgba(255,255,255,0.35);}
 .dash-card .n{font-family:var(--mono);font-size:21px;font-weight:800;line-height:1.1;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.25);}
 .dash-card .l{font-size:10px;color:rgba(255,255,255,0.75);margin-top:3px;font-weight:600;letter-spacing:0.3px;}
 .dash-card.done .n{color:#B9F3D6;}
@@ -297,11 +299,11 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
     <div class="progress-label"><span id="pct">0</span>% 완료 (<span id="doneCount2">0</span>/<span id="totalCount2">0</span>)</div>
     <div class="progress-bar"><div class="progress-fill" id="progFill" style="width:0%"></div></div>
   </div>
-  <div class="dash">
-    <div class="dash-card"><div class="n" id="totalCount">0</div><div class="l">전체</div></div>
-    <div class="dash-card none"><div class="n" id="noneCount">0</div><div class="l">미착수</div></div>
-    <div class="dash-card prog"><div class="n" id="progCount">0</div><div class="l">진행중</div></div>
-    <div class="dash-card done"><div class="n" id="doneCount">0</div><div class="l">완료</div></div>
+  <div class="dash" id="dashCards">
+    <div class="dash-card" data-status=""><div class="n" id="totalCount">0</div><div class="l">전체</div></div>
+    <div class="dash-card none" data-status="미착수"><div class="n" id="noneCount">0</div><div class="l">미착수</div></div>
+    <div class="dash-card prog" data-status="진행중"><div class="n" id="progCount">0</div><div class="l">진행중(개폐불가)</div></div>
+    <div class="dash-card done" data-status="완료"><div class="n" id="doneCount">0</div><div class="l">완료</div></div>
   </div>
 </header>
 
@@ -313,6 +315,13 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
   </div>
   <div class="menu-modal-body">
     <div class="menu-content" id="menuAdmin" style="display:none;">
+      <div class="side-section" style="border-bottom:1px solid var(--border);">
+        <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
+          <span style="font-size:12.5px;font-weight:700;color:var(--text);">🔒 관리자 모드</span>
+          <input type="checkbox" id="adminModeToggle" style="width:18px;height:18px;cursor:pointer;accent-color:var(--accent);">
+        </label>
+        <div style="font-size:10.5px;color:var(--text-dim);margin-top:6px;line-height:1.4;">켜면 현황 탭에서 기준점현황을 볼 수 있어요. 이 기기(브라우저)에서만 기억됩니다.</div>
+      </div>
       <div class="side-section">
         <div class="mode-tabs" data-mode-group="manhole">
           <button class="mtab active" data-mode="add">추가</button>
@@ -564,7 +573,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v9.2 · 2026-09-12';
+const APP_VERSION = 'v9.3 · 2026-09-12';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -650,6 +659,23 @@ function deselectManhole(){
   renderDashboard();
   renderList();
   renderDetail();
+}
+function renameManholeId(oldId, newId){
+  // 맨홀번호(id)는 state.manholes의 키이자 마커 인덱스의 키이므로, 값만 바꾸는 게 아니라 키 자체를 옮겨줘야 함
+  const record = state.manholes[oldId];
+  if(!record || !newId) return false;
+  delete state.manholes[oldId];
+  record.id = newId;
+  state.manholes[newId] = record;
+  const idx = state.order.indexOf(oldId);
+  if(idx > -1) state.order[idx] = newId;
+  if(typeof markerIndex !== 'undefined' && markerIndex[oldId]){
+    // 기존 마커는 클릭 핸들러가 예전 id를 참조하므로 지우고 다음 렌더링에서 새로 만들게 함
+    markerLayer.removeLayer(markerIndex[oldId].marker);
+    delete markerIndex[oldId];
+  }
+  if(selectedId === oldId) selectedId = newId;
+  return true;
 }
 async function deleteManhole(id){
   if(!state.manholes[id]) return;
@@ -868,7 +894,7 @@ function showMenu(name){
   document.getElementById('menuSearch').style.display = name==='search' ? 'flex' : 'none';
   document.getElementById('menuStatus').style.display = name==='status' ? 'flex' : 'none';
   document.getElementById('menuStats').style.display = name==='stats' ? 'flex' : 'none';
-  document.getElementById('menuModal').classList.toggle('stats-wide', name==='stats');
+  document.getElementById('menuModal').classList.toggle('stats-wide', name==='stats' || name==='status');
 
   if(name==='search'){
     renderUnifiedSearch();
@@ -890,6 +916,7 @@ document.getElementById('menuBackdrop').addEventListener('click', closeMenuModal
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeMenuModal(); });
 
 function showStatusSub(name){
+  if(name==='cp' && !isAdminMode) name = 'manhole'; // 관리자 모드가 아니면 기준점현황은 열 수 없음
   statusSub = name;
   document.querySelectorAll('#statusSubTabs .stab').forEach(b=>b.classList.toggle('active', b.dataset.sub===name));
   document.getElementById('statusManholeView').style.display = name==='manhole' ? 'flex' : 'none';
@@ -907,6 +934,23 @@ document.getElementById('statusSubTabs').addEventListener('click', (e)=>{
   if(!b) return;
   showStatusSub(b.dataset.sub);
 });
+
+/* ---------- 관리자 모드: 켜져 있을 때만 현황 탭에서 기준점현황을 볼 수 있음 (이 브라우저에만 저장) ---------- */
+let isAdminMode = false;
+try{ isAdminMode = localStorage.getItem('mh_admin_mode') === '1'; }catch(e){}
+function applyAdminModeUI(){
+  const cpTab = document.querySelector('#statusSubTabs .stab[data-sub="cp"]');
+  if(cpTab) cpTab.style.display = isAdminMode ? '' : 'none';
+  const toggle = document.getElementById('adminModeToggle');
+  if(toggle) toggle.checked = isAdminMode;
+  if(!isAdminMode && statusSub==='cp') showStatusSub('manhole');
+}
+document.getElementById('adminModeToggle').addEventListener('change', (e)=>{
+  isAdminMode = e.target.checked;
+  try{ localStorage.setItem('mh_admin_mode', isAdminMode ? '1' : '0'); }catch(err){}
+  applyAdminModeUI();
+});
+applyAdminModeUI();
 
 function blankRecord(id,x,y,z){
   return {id,x,y,z,status:'미착수',lidar:false,invert:'없음',ladder:'없음',fall:'없음',sensor:'없음',odor:'없음',conditions:[],conditionNote:'',inspector:'',date:'',note:''};
@@ -1954,6 +1998,7 @@ function getFilteredIds(){
     const m = state.manholes[id];
     if(!m) return false;
     if(dateSet && !dateSet.has(m.date)) return false;
+    if(statusHighlight && m.status !== statusHighlight) return false; // 상단 대시보드 카드로 진행상태 강조 중이면 그 상태로만 한정
     if(conditionFilter==='없음'){
       if(getConditions(m).length) return false;
     }else if(conditionFilter!=='all'){
@@ -2002,7 +2047,19 @@ function renderDashboard(){
   const pct = total ? Math.round(done/total*100) : 0;
   document.getElementById('pct').textContent = pct;
   document.getElementById('progFill').style.width = pct+'%';
+  document.querySelectorAll('#dashCards .dash-card').forEach(card=>{
+    card.classList.toggle('active-highlight', card.dataset.status === (statusHighlight||''));
+  });
 }
+/* 상단 대시보드 카드를 클릭하면 해당 진행상태의 맨홀만 지도/목록에서 강조 표시(번호 라벨도 항상 표시) */
+let statusHighlight = null; // null | '미착수' | '진행중' | '완료'
+document.getElementById('dashCards').addEventListener('click', (e)=>{
+  const card = e.target.closest('.dash-card');
+  if(!card) return;
+  const status = card.dataset.status || null; // '전체' 카드는 data-status=""
+  statusHighlight = (status===null || statusHighlight===status) ? null : status;
+  renderAll();
+});
 
 /* ---------- render: left list ---------- */
 let _lastListSig = null;
@@ -2779,21 +2836,36 @@ function updateLabelVisibility(){
   const shown = [];
   const MIN_DIST = 34; // px
 
-  // 날짜별 경로 보기 중인 맨홀은 줌 레벨과 상관없이 항상 라벨을 보여줌
+  // 날짜별 경로 보기 중인 맨홀은 보통 소수이므로 줌/화면 범위와 상관없이 항상 라벨을 보여줌
   const dayMembers = markerRefs.filter(r=>r.isDayMember);
   dayMembers.forEach(r=>{
     r.marker.openTooltip();
     shown.push(leafletMap.latLngToContainerPoint(r.marker.getLatLng()));
   });
 
-  const rest = markerRefs.filter(r=>!r.isDayMember);
+  const bounds = leafletMap.getBounds().pad(0.15);
+  // 대시보드 카드로 강조된 진행상태 맨홀은 줌 레벨 제한 없이 라벨을 보여주되, 화면에 보이는 것만(수가 많을 수 있어 성능/가독성을 위해 뷰포트·겹침은 그대로 적용)
+  const highlighted = markerRefs.filter(r=>!r.isDayMember && r.isStatusHighlighted);
+  highlighted.forEach(r=>{
+    const ll = r.marker.getLatLng();
+    if(!bounds.contains(ll)){ r.marker.closeTooltip(); return; }
+    const pt = leafletMap.latLngToContainerPoint(ll);
+    const collide = shown.some(p => Math.abs(p.x-pt.x) < MIN_DIST && Math.abs(p.y-pt.y) < MIN_DIST);
+    if(collide){
+      r.marker.closeTooltip();
+    }else{
+      r.marker.openTooltip();
+      shown.push(pt);
+    }
+  });
+
+  const rest = markerRefs.filter(r=>!r.isDayMember && !r.isStatusHighlighted);
   if(zoom < LABEL_MIN_ZOOM){
     rest.forEach(r=>r.marker.closeTooltip());
     cpMarkerRefs.forEach(r=>r.marker.closeTooltip());
     return;
   }
   // 화면(뷰포트)에 보이는 마커만 라벨 계산 대상으로 삼아 대량 데이터에서도 가볍게 처리
-  const bounds = leafletMap.getBounds().pad(0.15);
   rest.forEach(r=>{
     const ll = r.marker.getLatLng();
     if(!bounds.contains(ll)){ r.marker.closeTooltip(); return; }
@@ -2870,6 +2942,7 @@ function renderMap(){
     const isStar = hasCondition(m, '추가맨홀'); // 추가맨홀은 원이 아닌 별 모양으로 구분 표시
     const dayInfo = dayMemberInfo[id];
     const isDayMember = !!dayInfo;
+    const isStatusHighlighted = !!statusHighlight && m.status === statusHighlight; // 대시보드 카드로 강조된 진행상태는 번호를 항상 표시
     const dimForDayView = dayViewDates.length && !isDayMember;
     const style = manholeStyle(info.color, isSel, dimForDayView ? false : isActive, isDayMember, info.translucent);
     const styleKey = JSON.stringify(style);
@@ -2908,7 +2981,7 @@ function renderMap(){
       entry.tooltipText = tooltipText;
       entry.tooltipClass = tooltipClass;
     }
-    markerRefs.push({id, marker: entry.marker, isDayMember});
+    markerRefs.push({id, marker: entry.marker, isDayMember, isStatusHighlighted});
   }
 
   function finish(){
@@ -3029,8 +3102,10 @@ function renderDetailContent(panel){
 
   const header = `
     <div class="d-header">
-      <div>
-        <div class="d-title">${m.id}</div>
+      <div style="flex:1;min-width:0;">
+        ${detailEditMode
+          ? `<div class="field" style="margin-bottom:6px;"><label style="margin-bottom:3px;">맨홀번호</label><input type="text" id="f-manholeid" value="${m.id}" style="font-family:var(--mono);font-weight:800;"></div>`
+          : `<div class="d-title">${m.id}</div>`}
         <div class="d-coords">X ${fmtCoord(m.x)}　Y ${fmtCoord(m.y)}</div>
       </div>
       <button class="detail-close-btn" id="detailCloseBtn" title="닫기">✕</button>
@@ -3056,6 +3131,15 @@ function renderDetailContent(panel){
       renderDetail();
     });
     document.getElementById('detailSaveBtn').addEventListener('click', async ()=>{
+      const idInput = document.getElementById('f-manholeid');
+      if(idInput){
+        const newId = idInput.value.trim();
+        if(!newId){ showToast('맨홀번호를 입력해주세요'); return; }
+        if(newId !== selectedId){
+          if(state.manholes[newId]){ showToast(`이미 존재하는 맨홀번호입니다: ${newId}`); return; }
+          if(!renameManholeId(selectedId, newId)){ showToast('맨홀번호 변경에 실패했습니다'); return; }
+        }
+      }
       await saveState();
       renderDashboard(); renderList(); renderMap();
       refreshMarkerAppearance(selectedId);
