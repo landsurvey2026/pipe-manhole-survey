@@ -197,8 +197,10 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
 .cp-label-unsurveyed{background:#9AA6B2;}
 .cp-label-unsurveyed::before{border-top-color:#9AA6B2 !important;}
 .cp-label-lost::before{border-top-color:#E5484D !important;}
-.cp-label-reserved{background:#F59E0B;}
-.cp-label-reserved::before{border-top-color:#F59E0B !important;}
+.newcp-label{background:#F59E0B;border:1.5px solid #fff;border-radius:4px;padding:2px 7px;font-family:var(--mono);font-size:11px;font-weight:700;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.35);}
+.newcp-label::before{border-top-color:#F59E0B !important;}
+.newcp-label-done{background:#10B981;}
+.newcp-label-done::before{border-top-color:#10B981 !important;}
 .mh-label::before{border-top-color:rgba(255,255,255,0.92) !important;}
 .leaflet-top.leaflet-right{top:56px !important;}
 .locate-btn{display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:linear-gradient(180deg,#fff,#F3F5F8);color:#3A4552;font-size:16px;text-decoration:none;cursor:pointer;transition:background .12s ease;}
@@ -444,7 +446,6 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
             <div class="ftab active" data-cf="all">전체 <span id="cpFtAll">0</span></div>
             <div class="ftab" data-cf="미조사">미조사 <span id="cpFtUnsurveyed">0</span></div>
             <div class="ftab" data-cf="존재">존재 <span id="cpFtExist">0</span></div>
-            <div class="ftab" data-cf="선점">선점 <span id="cpFtReserved">0</span></div>
             <div class="ftab" data-cf="망실">망실 <span id="cpFtLost">0</span></div>
           </div>
         </div>
@@ -466,14 +467,12 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
         </div>
         <div style="display:flex;height:8px;border-radius:5px;overflow:hidden;background:var(--panel-2);margin-bottom:8px;">
           <div id="cpStatsBarExist" style="background:#8B5CF6;"></div>
-          <div id="cpStatsBarReserved" style="background:#F59E0B;"></div>
           <div id="cpStatsBarLost" style="background:#E5484D;"></div>
           <div id="cpStatsBarUnsurveyed" style="background:#9AA6B2;"></div>
         </div>
         <div style="display:flex;gap:10px;font-size:10.5px;color:var(--text-dim);flex-wrap:wrap;">
           <span><i class="dot" style="background:#9AA6B2;"></i>미조사 <b id="cpStatsUnsurveyed" style="color:var(--text);">0</b></span>
           <span><i class="dot" style="background:#8B5CF6;"></i>존재 <b id="cpStatsExist2" style="color:var(--text);">0</b></span>
-          <span><i class="dot" style="background:#F59E0B;"></i>선점 <b id="cpStatsReserved" style="color:var(--text);">0</b></span>
           <span><i class="dot" style="background:#E5484D;"></i>망실 <b id="cpStatsLost" style="color:var(--text);">0</b></span>
         </div>
       </div>
@@ -511,6 +510,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
       <div class="mt-group" id="layerToggle">
         <button class="active" data-layer="manhole">● 맨홀</button>
         <button data-layer="cp">▲ 기준점</button>
+        <button data-layer="newcp">■ 기준점(신설)</button>
       </div>
       <div class="mt-group" id="boundaryToggle">
         <button data-layer="gu">구/군 경계</button>
@@ -534,8 +534,10 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
       <span class="legend-sep"></span>
       <span style="color:#9AA6B2;">▲ 기준점(미조사)</span>
       <span style="color:#8B5CF6;">▲ 기준점(존재)</span>
-      <span style="color:#F59E0B;">△ 기준점(선점)</span>
       <span style="color:#E5484D;">▲ 기준점(망실)</span>
+      <span class="legend-sep"></span>
+      <span style="color:#F59E0B;">■ 기준점(신설, 예정)</span>
+      <span style="color:#10B981;">■ 기준점(신설, 설치완료)</span>
     </div>
   </div>
 </div>
@@ -548,6 +550,11 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 <div class="detail-backdrop" id="cpDetailBackdrop"></div>
 <div class="detail-modal" id="cpDetailModal" style="border-top-color:#8B5CF6;">
   <div class="detail-panel" id="cpDetailPanel"></div>
+</div>
+
+<div class="detail-backdrop" id="newCpDetailBackdrop"></div>
+<div class="detail-modal" id="newCpDetailModal" style="border-top-color:#F59E0B;">
+  <div class="detail-panel" id="newCpDetailPanel"></div>
 </div>
 
 <div class="add-backdrop" id="addBackdrop"></div>
@@ -566,6 +573,22 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
   </div>
 </div>
 
+<div class="add-backdrop" id="newCpAddBackdrop"></div>
+<div class="add-modal" id="newCpAddModal" style="border-top-color:#F59E0B;">
+  <div class="menu-modal-header">
+    <div class="menu-modal-title">기준점(신설) 추가</div>
+    <button class="menu-modal-close" id="newCpAddModalClose">✕</button>
+  </div>
+  <div style="padding:16px;">
+    <div class="field">
+      <label>명칭</label>
+      <input type="text" id="newCpNameInput" placeholder="예: 신설-1" style="width:100%;background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:9px 10px;border-radius:6px;font-size:13px;font-family:var(--mono);">
+    </div>
+    <div class="mode-hint">명칭을 입력하고 아래 버튼을 누른 뒤, 지도를 눌러 선점 위치를 지정하세요.</div>
+    <button id="newCpAddNextBtn" style="width:100%;background:#F59E0B;color:#fff;border:none;border-radius:7px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;">지도에서 위치 선택 →</button>
+  </div>
+</div>
+
 <div class="mobile-tabbar">
   <button class="tab-list" data-tab="list"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg></span>목록</button>
   <button class="tab-map active" data-tab="map"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line></svg></span>지도</button>
@@ -575,7 +598,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v9.10 · 2026-09-16';
+const APP_VERSION = 'v9.11 · 2026-09-16';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -590,7 +613,7 @@ const useFirebase = () => !!FIREBASE_URL;
 const STATUS_COLORS = {'미착수':'var(--st-none)','진행중':'var(--st-progress)','완료':'var(--st-done)'};
 const STATUS_HEX = {'미착수':'#FF5252','진행중':'#FFC400','완료':'#00C853'};
 
-let state = { order: [], manholes: {}, controlPoints: [], inspectors: [] };
+let state = { order: [], manholes: {}, controlPoints: [], newControlPoints: [], inspectors: [] };
 let selectedId = null;
 let detailEditMode = false; // 상세정보 패널: false=보기전용, true=수정중
 let mobileTab = 'map';
@@ -745,7 +768,6 @@ function renderCPDetail(){
       <select id="cp-status">
         <option value="미조사" ${(!cp.status||cp.status==='미조사')?'selected':''}>미조사</option>
         <option value="존재" ${cp.status==='존재'?'selected':''}>존재 (확인됨)</option>
-        <option value="선점" ${cp.status==='선점'?'selected':''}>선점 (추가 매설 예정)</option>
         <option value="망실" ${cp.status==='망실'?'selected':''}>망실</option>
       </select>
     </div>
@@ -802,6 +824,86 @@ function renderCPDetail(){
   }
 }
 document.getElementById('cpDetailBackdrop').addEventListener('click', closeCPDetailModal);
+
+/* ---------- 기준점(신설) 상세정보 (선점 위치 관리) ---------- */
+let selectedNewCpName = null;
+function openNewCpDetailModal(){
+  document.getElementById('newCpDetailModal').classList.add('open');
+  document.getElementById('newCpDetailBackdrop').classList.add('open');
+}
+function closeNewCpDetailModal(){
+  document.getElementById('newCpDetailModal').classList.remove('open');
+  document.getElementById('newCpDetailBackdrop').classList.remove('open');
+}
+function selectNewCp(name){
+  selectedNewCpName = name;
+  closeMenuModal();
+  closeDetailModal();
+  renderNewCpDetail();
+  openNewCpDetailModal();
+}
+function deselectNewCp(){
+  selectedNewCpName = null;
+  closeNewCpDetailModal();
+}
+async function deleteNewCp(name){
+  const idx = state.newControlPoints.findIndex(cp=>cp.name===name);
+  if(idx<0) return;
+  if(!confirm(`'${name}' 기준점(신설)을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+  state.newControlPoints.splice(idx,1);
+  if(selectedNewCpName===name) selectedNewCpName = null;
+  closeNewCpDetailModal();
+  await saveState();
+  renderAll();
+  showToast(`'${name}' 기준점(신설)이 삭제되었습니다`);
+}
+function renderNewCpDetail(){
+  const panel = document.getElementById('newCpDetailPanel');
+  const cp = state.newControlPoints.find(c=>c.name===selectedNewCpName);
+  if(!cp){ panel.innerHTML = ''; return; }
+  panel.innerHTML = `
+    <div class="d-header">
+      <div>
+        <div class="d-title">■ ${cp.name}</div>
+        <div class="d-coords">X ${fmtCoord(cp.x)}　Y ${fmtCoord(cp.y)}　Z ${fmtCoord(cp.z)}</div>
+      </div>
+      <button class="detail-close-btn" id="newCpDetailCloseBtn" title="닫기">✕</button>
+    </div>
+
+    <div class="field">
+      <label>상태</label>
+      <select id="newcp-status">
+        <option value="예정" ${(!cp.status||cp.status==='예정')?'selected':''}>선점 (설치 예정)</option>
+        <option value="완료" ${cp.status==='완료'?'selected':''}>설치완료</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>메모</label>
+      <textarea id="newcp-memo" rows="3" style="width:100%;background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:6px;font-size:12.5px;resize:vertical;">${cp.memo||''}</textarea>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button id="newCpDetailBottomClose" style="flex:1;background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);border-radius:7px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;">닫기</button>
+      <button id="newCpDetailDeleteBtn" style="flex:1;background:rgba(211,47,47,0.1);border:1px solid var(--st-bad);color:var(--st-bad);border-radius:7px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;">삭제</button>
+    </div>
+  `;
+  document.getElementById('newCpDetailCloseBtn').addEventListener('click', deselectNewCp);
+  document.getElementById('newCpDetailBottomClose').addEventListener('click', deselectNewCp);
+  document.getElementById('newCpDetailDeleteBtn').addEventListener('click', ()=>deleteNewCp(cp.name));
+
+  document.getElementById('newcp-status').addEventListener('change', (e)=>{
+    cp.status = e.target.value;
+    renderNewCpDetail();
+    renderCenter();
+    saveState().then(()=>showToast('저장됨'));
+  });
+  document.getElementById('newcp-memo').addEventListener('input', (e)=>{
+    cp.memo = e.target.value;
+    saveState();
+  });
+}
+document.getElementById('newCpDetailBackdrop').addEventListener('click', closeNewCpDetailModal);
 
 function setMobileTab(tab){
   mobileTab = tab;
@@ -1128,10 +1230,10 @@ let cpSearchTerm = '';
 let cpFilterStatus = 'all';
 let _lastCPListSig = null;
 function cpStatusColor(status){
-  return status==='망실' ? '#E5484D' : (status==='존재' ? '#8B5CF6' : (status==='선점' ? '#F59E0B' : '#9AA6B2'));
+  return status==='망실' ? '#E5484D' : (status==='존재' ? '#8B5CF6' : '#9AA6B2');
 }
 function cpStatusLabel(status){
-  return status==='망실' ? '망실' : (status==='존재' ? '존재' : (status==='선점' ? '선점(설치 예정)' : '미조사'));
+  return status==='망실' ? '망실' : (status==='존재' ? '존재' : '미조사');
 }
 function getFilteredCPs(){
   const all = state.controlPoints || [];
@@ -1144,17 +1246,14 @@ function renderCPList(){
   const ftAll = document.getElementById('cpFtAll');
   const ftUnsurveyed = document.getElementById('cpFtUnsurveyed');
   const ftExist = document.getElementById('cpFtExist');
-  const ftReserved = document.getElementById('cpFtReserved');
   const ftLost = document.getElementById('cpFtLost');
   const all = state.controlPoints || [];
   const unsurveyedN = all.filter(cp=>!cp.status || cp.status==='미조사').length;
   const existN = all.filter(cp=>cp.status==='존재').length;
-  const reservedN = all.filter(cp=>cp.status==='선점').length;
   const lostN = all.filter(cp=>cp.status==='망실').length;
   if(ftAll) ftAll.textContent = all.length;
   if(ftUnsurveyed) ftUnsurveyed.textContent = unsurveyedN;
   if(ftExist) ftExist.textContent = existN;
-  if(ftReserved) ftReserved.textContent = reservedN;
   if(ftLost) ftLost.textContent = lostN;
   list.classList.add('list-grid');
   if(!all.length){
@@ -1268,18 +1367,15 @@ function renderCPStats(){
   const cpTotal = all.length;
   const cpUnsurveyed = all.filter(cp=>!cp.status || cp.status==='미조사').length;
   const cpExist = all.filter(cp=>cp.status==='존재').length;
-  const cpReserved = all.filter(cp=>cp.status==='선점').length;
   const cpLost = all.filter(cp=>cp.status==='망실').length;
   document.getElementById('cpStatsTotal').textContent = cpTotal;
   document.getElementById('cpStatsExist').textContent = cpExist;
   document.getElementById('cpStatsPct').textContent = cpTotal ? Math.round(cpExist/cpTotal*100) : 0;
   document.getElementById('cpStatsUnsurveyed').textContent = cpUnsurveyed;
   document.getElementById('cpStatsExist2').textContent = cpExist;
-  document.getElementById('cpStatsReserved').textContent = cpReserved;
   document.getElementById('cpStatsLost').textContent = cpLost;
   const pct = (n)=> cpTotal ? (n/cpTotal*100)+'%' : '0%';
   document.getElementById('cpStatsBarExist').style.width = pct(cpExist);
-  document.getElementById('cpStatsBarReserved').style.width = pct(cpReserved);
   document.getElementById('cpStatsBarLost').style.width = pct(cpLost);
   document.getElementById('cpStatsBarUnsurveyed').style.width = pct(cpUnsurveyed);
 }
@@ -2346,6 +2442,7 @@ async function showAddressPopup(latlng){
 /* ---------- 맨홀 위치 이동 / 새 맨홀 추가 (지도 클릭으로 좌표 지정) ---------- */
 let moveModeId = null;
 let addModeId = null;
+let addNewCpMode = null; // 기준점(신설) 추가 모드 - 명칭 문자열을 담고 있으면 지도 클릭을 대기 중
 let lastMoveUndo = null;
 function startMoveMode(id){
   moveModeId = id;
@@ -2404,6 +2501,22 @@ function handleMapPlacementClick(latlng){
     showToast(`'${id}' 맨홀이 추가되었습니다`);
     return true;
   }
+  if(addNewCpMode){
+    const name = addNewCpMode;
+    addNewCpMode = null;
+    if(state.newControlPoints.some(cp=>cp.name===name)){
+      showToast('이미 존재하는 명칭이라 위치만 갱신했습니다');
+      const cp = state.newControlPoints.find(cp=>cp.name===name);
+      cp.x = coords.x; cp.y = coords.y;
+    }else{
+      state.newControlPoints.push({ name, x: coords.x, y: coords.y, z: 0, status: '예정', memo: '' });
+    }
+    saveState();
+    renderAll();
+    selectNewCp(name);
+    showToast(`'${name}' 기준점(신설)이 추가되었습니다`);
+    return true;
+  }
   return false;
 }
 const AddManholeControl = L.Control.extend({
@@ -2418,6 +2531,22 @@ const AddManholeControl = L.Control.extend({
     L.DomEvent.on(btn, 'click', function(e){
       L.DomEvent.preventDefault(e);
       openAddModal();
+    });
+    return container;
+  }
+});
+const AddNewCpControl = L.Control.extend({
+  options:{ position:'topright' },
+  onAdd: function(map){
+    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+    const btn = L.DomUtil.create('a', 'locate-btn', container);
+    btn.href = '#';
+    btn.title = '기준점(신설) 추가';
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>';
+    L.DomEvent.disableClickPropagation(container);
+    L.DomEvent.on(btn, 'click', function(e){
+      L.DomEvent.preventDefault(e);
+      openNewCpAddModal();
     });
     return container;
   }
@@ -2469,7 +2598,27 @@ document.getElementById('addManholeNextBtn').addEventListener('click', ()=>{
   showToast('지도를 눌러 맨홀 위치를 지정하세요');
 });
 
-let leafletMap = null, markerLayer = null, cpLayer = null, dayViewLayerGroup = null, simLayerGroup = null, flowArrowLayerGroup = null, hasFitBounds = false;
+function openNewCpAddModal(){
+  document.getElementById('newCpNameInput').value = '';
+  document.getElementById('newCpAddModal').classList.add('open');
+  document.getElementById('newCpAddBackdrop').classList.add('open');
+  setTimeout(()=>document.getElementById('newCpNameInput').focus(), 80);
+}
+function closeNewCpAddModal(){
+  document.getElementById('newCpAddModal').classList.remove('open');
+  document.getElementById('newCpAddBackdrop').classList.remove('open');
+}
+document.getElementById('newCpAddModalClose').addEventListener('click', closeNewCpAddModal);
+document.getElementById('newCpAddBackdrop').addEventListener('click', closeNewCpAddModal);
+document.getElementById('newCpAddNextBtn').addEventListener('click', ()=>{
+  const name = document.getElementById('newCpNameInput').value.trim();
+  if(!name){ showToast('명칭을 입력해주세요'); return; }
+  addNewCpMode = name;
+  closeNewCpAddModal();
+  showToast('지도를 눌러 기준점(신설) 위치를 지정하세요');
+});
+
+let leafletMap = null, markerLayer = null, cpLayer = null, newCpLayer = null, dayViewLayerGroup = null, simLayerGroup = null, flowArrowLayerGroup = null, hasFitBounds = false;
 let baseLayers = {}, currentBase = 'map';
 let meMarker = null, meCircle = null;
 const LocateControl = L.Control.extend({
@@ -2506,13 +2655,14 @@ function initLeaflet(){
   leafletMap.addControl(new LocateControl({position:cornerPos}));
   leafletMap.addControl(new AddManholeControl({position:cornerPos}));
   leafletMap.addControl(new MoveManholeControl({position:cornerPos}));
+  leafletMap.addControl(new AddNewCpControl({position:cornerPos}));
   L.control.attribution({prefix:false, position:'bottomright'}).addAttribution('Seo Young Min').addTo(leafletMap);
 
   leafletMap.on('click', (e)=>{
-    if(moveModeId || addModeId){ handleMapPlacementClick(e.latlng); }
+    if(moveModeId || addModeId || addNewCpMode){ handleMapPlacementClick(e.latlng); }
   });
   leafletMap.on('dblclick', (e)=>{
-    if(moveModeId || addModeId) return;
+    if(moveModeId || addModeId || addNewCpMode) return;
     showAddressPopup(e.latlng);
   });
   let _labelRaf = null;
@@ -2543,6 +2693,7 @@ function initLeaflet(){
   baseLayers.map.addTo(leafletMap);
   markerLayer = L.layerGroup().addTo(leafletMap);
   cpLayer = L.layerGroup(); // 기준점은 시작 시 꺼둠 - 지도 위 "▲ 기준점" 버튼을 눌러야 켜짐
+  newCpLayer = L.layerGroup(); // 기준점(신설)도 시작 시 꺼둠 - 지도 위 "■ 기준점(신설)" 버튼을 눌러야 켜짐
   dayViewLayerGroup = L.layerGroup().addTo(leafletMap);
   simLayerGroup = L.layerGroup().addTo(leafletMap);
   flowArrowLayerGroup = L.layerGroup().addTo(leafletMap);
@@ -2568,6 +2719,8 @@ document.getElementById('layerToggle').addEventListener('click',(e)=>{
   const on = b.classList.contains('active');
   if(b.dataset.layer==='manhole'){
     if(on) markerLayer.addTo(leafletMap); else leafletMap.removeLayer(markerLayer);
+  }else if(b.dataset.layer==='newcp'){
+    if(on) newCpLayer.addTo(leafletMap); else leafletMap.removeLayer(newCpLayer);
   }else{
     if(on) cpLayer.addTo(leafletMap); else leafletMap.removeLayer(cpLayer);
   }
@@ -2636,27 +2789,45 @@ function renderCustomBoundary(){
 
 const _cpIconCache = {};
 function cpIcon(status){
-  const key = status==='망실' ? 'lost' : (status==='존재' ? 'present' : (status==='선점' ? 'reserved' : 'unsurveyed'));
+  const key = status==='망실' ? 'lost' : (status==='존재' ? 'present' : 'unsurveyed');
   if(_cpIconCache[key]) return _cpIconCache[key];
-  const color = status==='망실' ? '#E5484D' : (status==='존재' ? '#8B5CF6' : (status==='선점' ? '#F59E0B' : '#9AA6B2'));
-  // 선점(추가 매설 예정) 위치는 아직 실제로 존재하는 기준점이 아니므로, 점선 테두리 + 반투명 채움 + "+" 표시로 다른 상태와 구분되게 표시
-  const isReserved = status==='선점';
-  const shapeAttrs = isReserved
-    ? `fill="${color}" fill-opacity="0.3" stroke="${color}" stroke-width="2.2" stroke-dasharray="3,2.5"`
-    : `fill="${color}" stroke="#fff" stroke-width="2.2"`;
-  const glyph = isReserved ? '+' : '▲';
-  const glyphFill = isReserved ? color : '#fff';
+  const color = status==='망실' ? '#E5484D' : (status==='존재' ? '#8B5CF6' : '#9AA6B2');
   const icon = L.divIcon({
     className:'',
     html:`<div style="filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));">
       <svg width="26" height="24" viewBox="0 0 26 24">
-        <polygon points="13,1 25,22 1,22" ${shapeAttrs}/>
-        <text x="13" y="18" text-anchor="middle" font-size="11" font-weight="800" fill="${glyphFill}" font-family="sans-serif">${glyph}</text>
+        <polygon points="13,1 25,22 1,22" fill="${color}" stroke="#fff" stroke-width="2.2"/>
       </svg>
     </div>`,
     iconSize:[26,24], iconAnchor:[13,20]
   });
   _cpIconCache[key] = icon;
+  return icon;
+}
+
+const _newCpIconCache = {};
+function newCpIcon(status){
+  const key = status==='완료' ? 'done' : 'planned';
+  if(_newCpIconCache[key]) return _newCpIconCache[key];
+  const color = status==='완료' ? '#10B981' : '#F59E0B';
+  // 신설 예정(선점) 위치는 아직 실제로 매설되지 않았으므로 점선 테두리 + 반투명 채움 + "+" 표시로 구분, 설치완료는 실선 사각형
+  const isPlanned = status!=='완료';
+  const shapeAttrs = isPlanned
+    ? `fill="${color}" fill-opacity="0.3" stroke="${color}" stroke-width="2.2" stroke-dasharray="3,2.5"`
+    : `fill="${color}" stroke="#fff" stroke-width="2.2"`;
+  const glyph = isPlanned ? '+' : '■';
+  const glyphFill = isPlanned ? color : '#fff';
+  const icon = L.divIcon({
+    className:'',
+    html:`<div style="filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));">
+      <svg width="24" height="24" viewBox="0 0 24 24">
+        <rect x="2" y="2" width="20" height="20" rx="3" ${shapeAttrs}/>
+        <text x="12" y="16" text-anchor="middle" font-size="11" font-weight="800" fill="${glyphFill}" font-family="sans-serif">${glyph}</text>
+      </svg>
+    </div>`,
+    iconSize:[24,24], iconAnchor:[12,20]
+  });
+  _newCpIconCache[key] = icon;
   return icon;
 }
 let cpMarkerIndex = {}; // name -> {marker, icon, tooltipClass}
@@ -2670,7 +2841,7 @@ function renderControlPoints(){
     if(!ll) return;
     seen.add(cp.name);
     const icon = cpIcon(cp.status);
-    const tooltipClass = cp.status==='망실' ? 'cp-label cp-label-lost' : (cp.status==='존재' ? 'cp-label' : (cp.status==='선점' ? 'cp-label cp-label-reserved' : 'cp-label cp-label-unsurveyed'));
+    const tooltipClass = cp.status==='망실' ? 'cp-label cp-label-lost' : (cp.status==='존재' ? 'cp-label' : 'cp-label cp-label-unsurveyed');
     let entry = cpMarkerIndex[cp.name];
     if(!entry){
       const marker = L.marker(ll, {icon}).addTo(cpLayer);
@@ -2693,6 +2864,44 @@ function renderControlPoints(){
     if(!seen.has(name)){
       cpLayer.removeLayer(cpMarkerIndex[name].marker);
       delete cpMarkerIndex[name];
+    }
+  });
+}
+
+let newCpMarkerIndex = {}; // name -> {marker, icon, tooltipClass}
+let newCpMarkerRefs = [];
+function renderNewControlPoints(){
+  if(!newCpLayer) return;
+  const seen = new Set();
+  newCpMarkerRefs = [];
+  (state.newControlPoints||[]).forEach(cp=>{
+    const ll = toLatLng(cp.x, cp.y);
+    if(!ll) return;
+    seen.add(cp.name);
+    const icon = newCpIcon(cp.status);
+    const tooltipClass = cp.status==='완료' ? 'newcp-label newcp-label-done' : 'newcp-label';
+    let entry = newCpMarkerIndex[cp.name];
+    if(!entry){
+      const marker = L.marker(ll, {icon}).addTo(newCpLayer);
+      marker.on('click', ()=>selectNewCp(cp.name));
+      entry = { marker, icon:null, tooltipClass:null };
+      newCpMarkerIndex[cp.name] = entry;
+    }else{
+      const cur = entry.marker.getLatLng();
+      if(cur.lat!==ll[0] || cur.lng!==ll[1]) entry.marker.setLatLng(ll);
+    }
+    if(entry.icon !== icon){ entry.marker.setIcon(icon); entry.icon = icon; }
+    if(entry.tooltipClass !== tooltipClass){
+      entry.marker.unbindTooltip();
+      entry.marker.bindTooltip(cp.name, {permanent:true, direction:'top', offset:[0,-20], opacity:0.95, className:tooltipClass});
+      entry.tooltipClass = tooltipClass;
+    }
+    newCpMarkerRefs.push({ marker: entry.marker });
+  });
+  Object.keys(newCpMarkerIndex).forEach(name=>{
+    if(!seen.has(name)){
+      newCpLayer.removeLayer(newCpMarkerIndex[name].marker);
+      delete newCpMarkerIndex[name];
     }
   });
 }
@@ -2823,6 +3032,7 @@ function updateLabelVisibility(){
   if(zoom < LABEL_MIN_ZOOM){
     rest.forEach(r=>r.marker.closeTooltip());
     cpMarkerRefs.forEach(r=>r.marker.closeTooltip());
+    newCpMarkerRefs.forEach(r=>r.marker.closeTooltip());
     return;
   }
   // 화면(뷰포트)에 보이는 마커만 라벨 계산 대상으로 삼아 대량 데이터에서도 가볍게 처리
@@ -2851,6 +3061,19 @@ function updateLabelVisibility(){
       shown.push(pt);
     }
   });
+  // 기준점(신설) 라벨도 동일한 방식으로 표시
+  newCpMarkerRefs.forEach(r=>{
+    const ll = r.marker.getLatLng();
+    if(!bounds.contains(ll)){ r.marker.closeTooltip(); return; }
+    const pt = leafletMap.latLngToContainerPoint(ll);
+    const collide = shown.some(p => Math.abs(p.x-pt.x) < MIN_DIST && Math.abs(p.y-pt.y) < MIN_DIST);
+    if(collide){
+      r.marker.closeTooltip();
+    }else{
+      r.marker.openTooltip();
+      shown.push(pt);
+    }
+  });
 }
 
 let markerIndex = {}; // id -> {marker, sig, tooltipText, tooltipClass} 재사용을 위한 인덱스
@@ -2860,6 +3083,7 @@ function renderMap(){
   const activeSet = new Set(ids);
   dayViewLayerGroup.clearLayers();
   renderControlPoints();
+  renderNewControlPoints();
 
   const boundsPts = [];
   const dayMemberInfo = {}; // id -> {idx} (선택된 날짜들 중 자신이 속한 날짜 내에서의 순번)
@@ -3277,11 +3501,13 @@ function renderAll(){
   renderDayViewBar();
   if(routeViewOpen) refreshRouteDatePanel();
   if(selectedCPName) renderCPDetail();
+  if(selectedNewCpName) renderNewCpDetail();
 }
 
 const BAD_CP_NAMES = ['기준점명','기준점','명칭','이름','name'];
 function ensureStateDefaults(){
   if(!state.controlPoints) state.controlPoints = [];
+  if(!state.newControlPoints) state.newControlPoints = [];
   if(!state.inspectors) state.inspectors = [];
   if(!state.order) state.order = [];
   if(!state.manholes) state.manholes = {};
@@ -3293,6 +3519,7 @@ function ensureStateDefaults(){
     if(!isFinite(Number(cp.x)) || !isFinite(Number(cp.y))) return false;
     return true;
   });
+  state.newControlPoints = state.newControlPoints.filter(cp=>cp && cp.name && isFinite(Number(cp.x)) && isFinite(Number(cp.y)));
 }
 
 /* ---------- 다른 사람/다른 기기와 실시간에 가깝게 동기화 ---------- */
