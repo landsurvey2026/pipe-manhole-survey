@@ -362,6 +362,22 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
         <button id="resetCPStatusBtn" style="width:100%;margin-top:6px;background:rgba(154,166,178,0.12);border:1px solid #9AA6B2;color:#6B7A89;border-radius:7px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">↺ 전체 기준점 상태를 "미조사"로 초기화</button>
       </div>
       <div class="side-section">
+        <div style="font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:8px;">■ 기준점(신설) 엑셀 업로드</div>
+        <div class="mode-tabs" data-mode-group="newcp">
+          <button class="mtab active" data-mode="add">추가</button>
+          <button class="mtab" data-mode="replace">전체</button>
+          <button class="mtab" data-mode="delete">삭제</button>
+        </div>
+        <div class="mode-hint" id="newcpModeHint">엑셀의 기준점(신설)만 새로 추가/갱신하고, 기존 항목은 그대로 둡니다.</div>
+        <label class="upload-box" id="newcpUploadBox">
+          <input type="file" id="newcpFileInput" accept=".xlsx,.xls,.csv">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect></svg></div>
+          <div class="t1">기준점(신설) 엑셀 업로드 (명칭, X, Y, Z)</div>
+          <div class="t2">.xlsx / .xls / .csv 지원 · 이름 기준으로 갱신</div>
+        </label>
+        <button id="clearAllNewCpBtn" style="width:100%;margin-top:8px;background:rgba(211,47,47,0.08);border:1px solid var(--st-bad);color:var(--st-bad);border-radius:7px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">🗑 전체 기준점(신설) 삭제 (엑셀 없이)</button>
+      </div>
+      <div class="side-section">
         <div style="font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:8px;">행정경계 업로드</div>
         <div style="font-size:10.5px;color:var(--text-dim);margin-bottom:8px;line-height:1.4;">지금은 임시로 브이월드 행정경계(구/군·동)를 지도 위 버튼으로 켜고 끌 수 있어요. <b>CAD(.dxf) 도면을 그대로 올리시면 자동으로 변환</b>해서 지도 위에 표시합니다 (좌표계는 맨홀 좌표와 같은 중부원점(EPSG:5186) 기준이어야 정확히 맞습니다). GeoJSON 파일도 그대로 업로드 가능해요. 올리면 주황색 점선으로 표시됩니다.</div>
         <label class="upload-box" id="boundaryUploadBox">
@@ -598,7 +614,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v9.11 · 2026-09-16';
+const APP_VERSION = 'v9.12 · 2026-09-16';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -921,26 +937,31 @@ let viewMode = 'map';
 let statusSub = 'manhole';
 let manholeUploadMode = 'add';
 let cpUploadMode = 'add';
+let newcpUploadMode = 'add';
 
 const MODE_HINTS = {
   add: (label)=>`엑셀의 ${label}만 새로 추가/갱신하고, 기존 ${label}은 그대로 둡니다.`,
   replace: (label)=>`기존 ${label}을 모두 지우고 엑셀 내용으로 전체 교체합니다. (같은 이름/번호는 기존 조사현황 유지)`,
   delete: (label)=>`엑셀에 있는 ${label}만 현재 목록에서 삭제합니다.`
 };
+const MODE_HINT_IDS = { manhole:'manholeModeHint', cp:'cpModeHint', newcp:'newcpModeHint' };
 function wireModeTabs(groupName, label){
   const group = document.querySelector(`[data-mode-group="${groupName}"]`);
-  const hint = document.getElementById(groupName==='manhole' ? 'manholeModeHint' : 'cpModeHint');
+  const hint = document.getElementById(MODE_HINT_IDS[groupName]);
   group.querySelectorAll('.mtab').forEach(b=>{
     b.addEventListener('click', ()=>{
       group.querySelectorAll('.mtab').forEach(x=>x.classList.remove('active'));
       b.classList.add('active');
-      if(groupName==='manhole') manholeUploadMode = b.dataset.mode; else cpUploadMode = b.dataset.mode;
+      if(groupName==='manhole') manholeUploadMode = b.dataset.mode;
+      else if(groupName==='cp') cpUploadMode = b.dataset.mode;
+      else newcpUploadMode = b.dataset.mode;
       hint.textContent = MODE_HINTS[b.dataset.mode](label);
     });
   });
 }
 wireModeTabs('manhole','맨홀');
 wireModeTabs('cp','기준점');
+wireModeTabs('newcp','기준점(신설)');
 
 function findColIdx(header, candidates, fallback){
   for(const c of candidates){
@@ -1221,6 +1242,64 @@ document.getElementById('cpFileInput').addEventListener('change', async (e)=>{
     });
     await saveState();
     showToast(`기준점 업로드 완료 · 신규 ${added}건 / 갱신 ${updated}건`);
+  }
+  renderAll();
+  e.target.value = '';
+});
+
+/* ---------- 기준점(신설) 업로드 — X,Y,Z 모두 사용 ---------- */
+document.getElementById('newcpFileInput').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, {type:'array'});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true});
+  if(!rows.length){ showToast('빈 파일입니다'); e.target.value=''; return; }
+  const header = rows[0].map(h=>String(h??'').trim().toLowerCase());
+  const nameIdx = findColIdx(header, ['기준점','명칭','이름','name'], 0);
+  const xIdx = findColIdx(header, ['x'], 1);
+  const yIdx = findColIdx(header, ['y'], 2);
+  const zIdx = findColIdx(header, ['z','표고'], 3);
+  const parsed = [];
+  for(let i=1;i<rows.length;i++){
+    const row = rows[i];
+    if(!row || !row.length) continue;
+    const name = String(row[nameIdx] ?? '').trim();
+    if(!name || BAD_CP_NAMES.includes(name.toLowerCase())) continue;
+    const px = parseFloat(row[xIdx]), py = parseFloat(row[yIdx]);
+    if(!isFinite(px) || !isFinite(py)) continue;
+    parsed.push({name, x:px, y:py, z:parseFloat(row[zIdx]), status:'예정', memo:''});
+  }
+  if(!parsed.length){ showToast('인식된 기준점(신설) 데이터가 없습니다'); e.target.value=''; return; }
+
+  if(newcpUploadMode==='delete'){
+    if(!confirm(`엑셀에 있는 기준점(신설) ${parsed.length}건을 현재 목록에서 삭제할까요?`)){ e.target.value=''; return; }
+    let removed=0;
+    parsed.forEach(r=>{
+      const idx = state.newControlPoints.findIndex(cp=>cp.name===r.name);
+      if(idx>=0){ state.newControlPoints.splice(idx,1); removed++; }
+    });
+    await saveState();
+    showToast(`기준점(신설) ${removed}건 삭제됨`);
+  }else if(newcpUploadMode==='replace'){
+    if(!confirm(`기존 기준점(신설)을 모두 지우고 엑셀 내용(${parsed.length}건)으로 전체 교체할까요?\n(같은 이름은 기존 예정/완료 상태와 메모를 유지합니다)`)){ e.target.value=''; return; }
+    const merged = parsed.map(r=>{
+      const existing = state.newControlPoints.find(cp=>cp.name===r.name);
+      return existing ? {...r, status:existing.status||'예정', memo:existing.memo||''} : r;
+    });
+    state.newControlPoints = merged;
+    await saveState();
+    showToast(`기준점(신설) 전체교체 완료 · ${parsed.length}건`);
+  }else{
+    let added=0, updated=0;
+    parsed.forEach(r=>{
+      const existing = state.newControlPoints.find(cp=>cp.name===r.name);
+      if(existing){ existing.x=r.x; existing.y=r.y; existing.z=r.z; updated++; }
+      else{ state.newControlPoints.push(r); added++; }
+    });
+    await saveState();
+    showToast(`기준점(신설) 업로드 완료 · 신규 ${added}건 / 갱신 ${updated}건`);
   }
   renderAll();
   e.target.value = '';
@@ -1775,6 +1854,16 @@ document.getElementById('resetCPStatusBtn').addEventListener('click', async ()=>
   await saveState();
   renderAll();
   showToast(`기준점 ${cnt}개 상태가 미조사로 초기화되었습니다`);
+});
+document.getElementById('clearAllNewCpBtn').addEventListener('click', async ()=>{
+  const cnt = state.newControlPoints.length;
+  if(!cnt){ showToast('삭제할 기준점(신설)이 없습니다'); return; }
+  if(!confirm(`전체 기준점(신설) ${cnt}개를 모두 삭제할까요?\n되돌릴 수 없습니다.`)) return;
+  state.newControlPoints = [];
+  if(selectedNewCpName){ selectedNewCpName = null; closeNewCpDetailModal(); }
+  await saveState();
+  renderAll();
+  showToast(`기준점(신설) ${cnt}개 전체 삭제됨`);
 });
 
 /* ---------- 행정경계 업로드: CAD(.dxf) 또는 GeoJSON 지원 ---------- */
