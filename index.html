@@ -191,11 +191,11 @@ header{padding:16px 22px;border-bottom:1px solid rgba(0,0,0,0.15);background:lin
   50%{ background:#fff; color:#1A1D20; }
 }
 .search-flash-label{ animation: searchFlashLabel 0.5s ease-in-out 4; font-weight:800 !important; }
-.cp-label{background:#8B5CF6;border:1.5px solid #fff;border-radius:4px;padding:2px 7px;font-family:var(--mono);font-size:11px;font-weight:700;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.35);}
+.cp-label{background:#8B5CF6;border:1.5px solid #1A1D20;border-radius:4px;padding:3px 8px;font-family:var(--mono);font-size:12px;font-weight:800;color:#fff;box-shadow:0 1px 5px rgba(0,0,0,0.5);text-shadow:0 1px 1px rgba(0,0,0,0.4);}
 .cp-label::before{border-top-color:#8B5CF6 !important;}
 .cp-label-lost{background:#E5484D;}
-.cp-label-unsurveyed{background:#9AA6B2;}
-.cp-label-unsurveyed::before{border-top-color:#9AA6B2 !important;}
+.cp-label-unsurveyed{background:#5C6B7A;}
+.cp-label-unsurveyed::before{border-top-color:#5C6B7A !important;}
 .cp-label-lost::before{border-top-color:#E5484D !important;}
 .newcp-label{background:#F59E0B;border:1.5px solid #fff;border-radius:4px;padding:2px 7px;font-family:var(--mono);font-size:11px;font-weight:700;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.35);}
 .newcp-label::before{border-top-color:#F59E0B !important;}
@@ -484,10 +484,10 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
         <div style="display:flex;height:8px;border-radius:5px;overflow:hidden;background:var(--panel-2);margin-bottom:8px;">
           <div id="cpStatsBarExist" style="background:#8B5CF6;"></div>
           <div id="cpStatsBarLost" style="background:#E5484D;"></div>
-          <div id="cpStatsBarUnsurveyed" style="background:#9AA6B2;"></div>
+          <div id="cpStatsBarUnsurveyed" style="background:#5C6B7A;"></div>
         </div>
         <div style="display:flex;gap:10px;font-size:10.5px;color:var(--text-dim);flex-wrap:wrap;">
-          <span><i class="dot" style="background:#9AA6B2;"></i>미조사 <b id="cpStatsUnsurveyed" style="color:var(--text);">0</b></span>
+          <span><i class="dot" style="background:#5C6B7A;"></i>미조사 <b id="cpStatsUnsurveyed" style="color:var(--text);">0</b></span>
           <span><i class="dot" style="background:#8B5CF6;"></i>존재 <b id="cpStatsExist2" style="color:var(--text);">0</b></span>
           <span><i class="dot" style="background:#E5484D;"></i>망실 <b id="cpStatsLost" style="color:var(--text);">0</b></span>
         </div>
@@ -525,7 +525,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
       </div>
       <div class="mt-group" id="layerToggle">
         <button class="active" data-layer="manhole">● 맨홀</button>
-        <button data-layer="cp">▲ 기준점</button>
+        <button data-layer="cp">▽ 기준점</button>
         <button data-layer="newcp">■ 기준점(신설)</button>
       </div>
       <div class="mt-group" id="boundaryToggle">
@@ -548,9 +548,9 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
       <span style="color:#8E24AA;">★ 추가맨홀</span>
       <span><i class="dot" style="background:#FB8C00"></i>그외</span>
       <span class="legend-sep"></span>
-      <span style="color:#9AA6B2;">▲ 기준점(미조사)</span>
-      <span style="color:#8B5CF6;">▲ 기준점(존재)</span>
-      <span style="color:#E5484D;">▲ 기준점(망실)</span>
+      <span style="color:#5C6B7A;">▽ 기준점(미조사)</span>
+      <span style="color:#8B5CF6;">▽ 기준점(존재)</span>
+      <span style="color:#E5484D;">▽ 기준점(망실)</span>
       <span class="legend-sep"></span>
       <span style="color:#F59E0B;">■ 기준점(신설, 예정)</span>
       <span style="color:#10B981;">■ 기준점(신설, 설치완료)</span>
@@ -614,7 +614,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-const APP_VERSION = 'v9.12 · 2026-09-16';
+const APP_VERSION = 'v9.13 · 2026-09-16';
 const STORAGE_KEY = 'seoul-sewer-manhole-data';
 function fmtCoord(v){
   const n = Number(v);
@@ -773,7 +773,7 @@ function renderCPDetail(){
   panel.innerHTML = `
     <div class="d-header">
       <div>
-        <div class="d-title">▲ ${cp.name}</div>
+        <div class="d-title">▽ ${cp.name}</div>
         <div class="d-coords">X ${fmtCoord(cp.x)}　Y ${fmtCoord(cp.y)}　Z ${fmtCoord(cp.z)}</div>
       </div>
       <button class="detail-close-btn" id="cpDetailCloseBtn" title="닫기">✕</button>
@@ -1309,7 +1309,7 @@ let cpSearchTerm = '';
 let cpFilterStatus = 'all';
 let _lastCPListSig = null;
 function cpStatusColor(status){
-  return status==='망실' ? '#E5484D' : (status==='존재' ? '#8B5CF6' : '#9AA6B2');
+  return status==='망실' ? '#E5484D' : (status==='존재' ? '#8B5CF6' : '#5C6B7A');
 }
 function cpStatusLabel(status){
   return status==='망실' ? '망실' : (status==='존재' ? '존재' : '미조사');
@@ -2781,7 +2781,7 @@ function initLeaflet(){
 
   baseLayers.map.addTo(leafletMap);
   markerLayer = L.layerGroup().addTo(leafletMap);
-  cpLayer = L.layerGroup(); // 기준점은 시작 시 꺼둠 - 지도 위 "▲ 기준점" 버튼을 눌러야 켜짐
+  cpLayer = L.layerGroup(); // 기준점은 시작 시 꺼둠 - 지도 위 "▽ 기준점" 버튼을 눌러야 켜짐
   newCpLayer = L.layerGroup(); // 기준점(신설)도 시작 시 꺼둠 - 지도 위 "■ 기준점(신설)" 버튼을 눌러야 켜짐
   dayViewLayerGroup = L.layerGroup().addTo(leafletMap);
   simLayerGroup = L.layerGroup().addTo(leafletMap);
@@ -2880,15 +2880,16 @@ const _cpIconCache = {};
 function cpIcon(status){
   const key = status==='망실' ? 'lost' : (status==='존재' ? 'present' : 'unsurveyed');
   if(_cpIconCache[key]) return _cpIconCache[key];
-  const color = status==='망실' ? '#E5484D' : (status==='존재' ? '#8B5CF6' : '#9AA6B2');
+  // 잘 안 보인다는 의견에 따라 색상 대비를 높이고(진한 테두리, 더 선명한 색), 아래로 뾰족한 역삼각형(▽) 모양으로 변경
+  const color = status==='망실' ? '#E5484D' : (status==='존재' ? '#8B5CF6' : '#5C6B7A');
   const icon = L.divIcon({
     className:'',
-    html:`<div style="filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));">
-      <svg width="26" height="24" viewBox="0 0 26 24">
-        <polygon points="13,1 25,22 1,22" fill="${color}" stroke="#fff" stroke-width="2.2"/>
+    html:`<div style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.6));">
+      <svg width="28" height="26" viewBox="0 0 28 26">
+        <polygon points="2,2 26,2 14,24" fill="${color}" stroke="#1A1D20" stroke-width="2"/>
       </svg>
     </div>`,
-    iconSize:[26,24], iconAnchor:[13,20]
+    iconSize:[28,26], iconAnchor:[14,24]
   });
   _cpIconCache[key] = icon;
   return icon;
@@ -2944,7 +2945,7 @@ function renderControlPoints(){
     if(entry.icon !== icon){ entry.marker.setIcon(icon); entry.icon = icon; }
     if(entry.tooltipClass !== tooltipClass){
       entry.marker.unbindTooltip();
-      entry.marker.bindTooltip(cp.name, {permanent:true, direction:'top', offset:[0,-22], opacity:0.95, className:tooltipClass});
+      entry.marker.bindTooltip(cp.name, {permanent:true, direction:'top', offset:[0,-26], opacity:0.98, className:tooltipClass});
       entry.tooltipClass = tooltipClass;
     }
     cpMarkerRefs.push({ marker: entry.marker });
@@ -3117,27 +3118,7 @@ function updateLabelVisibility(){
     }
   });
 
-  const rest = markerRefs.filter(r=>!r.isDayMember && !r.isStatusHighlighted);
-  if(zoom < LABEL_MIN_ZOOM){
-    rest.forEach(r=>r.marker.closeTooltip());
-    cpMarkerRefs.forEach(r=>r.marker.closeTooltip());
-    newCpMarkerRefs.forEach(r=>r.marker.closeTooltip());
-    return;
-  }
-  // 화면(뷰포트)에 보이는 마커만 라벨 계산 대상으로 삼아 대량 데이터에서도 가볍게 처리
-  rest.forEach(r=>{
-    const ll = r.marker.getLatLng();
-    if(!bounds.contains(ll)){ r.marker.closeTooltip(); return; }
-    const pt = leafletMap.latLngToContainerPoint(ll);
-    const collide = shown.some(p => Math.abs(p.x-pt.x) < MIN_DIST && Math.abs(p.y-pt.y) < MIN_DIST);
-    if(collide){
-      r.marker.closeTooltip();
-    }else{
-      r.marker.openTooltip();
-      shown.push(pt);
-    }
-  });
-  // 기준점 라벨도 같은 방식(줌/뷰포트/겹침)으로 표시
+  // 기준점 / 기준점(신설)은 맨홀보다 수가 훨씬 적으므로, 줌 레벨과 상관없이 화면(뷰포트)·겹침 기준으로만 번호를 항상 표시
   cpMarkerRefs.forEach(r=>{
     const ll = r.marker.getLatLng();
     if(!bounds.contains(ll)){ r.marker.closeTooltip(); return; }
@@ -3150,8 +3131,26 @@ function updateLabelVisibility(){
       shown.push(pt);
     }
   });
-  // 기준점(신설) 라벨도 동일한 방식으로 표시
   newCpMarkerRefs.forEach(r=>{
+    const ll = r.marker.getLatLng();
+    if(!bounds.contains(ll)){ r.marker.closeTooltip(); return; }
+    const pt = leafletMap.latLngToContainerPoint(ll);
+    const collide = shown.some(p => Math.abs(p.x-pt.x) < MIN_DIST && Math.abs(p.y-pt.y) < MIN_DIST);
+    if(collide){
+      r.marker.closeTooltip();
+    }else{
+      r.marker.openTooltip();
+      shown.push(pt);
+    }
+  });
+
+  const rest = markerRefs.filter(r=>!r.isDayMember && !r.isStatusHighlighted);
+  if(zoom < LABEL_MIN_ZOOM){
+    rest.forEach(r=>r.marker.closeTooltip());
+    return;
+  }
+  // 화면(뷰포트)에 보이는 마커만 라벨 계산 대상으로 삼아 대량 데이터에서도 가볍게 처리
+  rest.forEach(r=>{
     const ll = r.marker.getLatLng();
     if(!bounds.contains(ll)){ r.marker.closeTooltip(); return; }
     const pt = leafletMap.latLngToContainerPoint(ll);
